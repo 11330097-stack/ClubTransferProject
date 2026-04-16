@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}重新選擇社團 - 社團轉社系統{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">重新選擇目標社團</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <p class="mb-0">
+                        <strong>原社團：</strong>{{ object.original_club.name }}（審核已通過）<br>
+                        <strong>原申請社團：</strong>{{ object.target_club.name }}（已被拒絕）
+                    </p>
+                </div>
+                
+                <p>請重新選擇您想要轉入的社團。原社團的審核結果將保留，只需重新進行新社團的審核流程。</p>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.target_club.id_for_label }}" class="form-label">
+                            新目標社團 <span class="text-danger">*</span>
+                        </label>
+                        {{ form.target_club }}
+                        {% if form.target_club.errors %}
+                            <div class="text-danger small">{{ form.target_club.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-warning">確認重新選擇</button>
+                        <a href="{% url 'my_requests' %}" class="btn btn-outline-secondary">取消</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('select').forEach(el => {
+    el.classList.add('form-control');
+});
+</script>
+{% endblock %}

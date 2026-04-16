@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}申請轉社 - 社團轉社系統{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">申請轉社</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>目前社團：</strong>{{ user.club.name|default:"未加入任何社團" }}
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.target_club.id_for_label }}" class="form-label">
+                            目標社團 <span class="text-danger">*</span>
+                        </label>
+                        {{ form.target_club }}
+                        {% if form.target_club.errors %}
+                            <div class="text-danger small">{{ form.target_club.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">系統會自動過濾已額滿或您目前所屬的社團</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.reason.id_for_label }}" class="form-label">
+                            轉社原因
+                        </label>
+                        {{ form.reason }}
+                        {% if form.reason.errors %}
+                            <div class="text-danger small">{{ form.reason.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">提交申請</button>
+                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">取消</a>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer">
+                <small class="text-muted">
+                    <strong>審核流程：</strong>原社長 → 原指導老師 → 新社長 → 新指導老師 → 訓育組
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 為表單元素添加 Bootstrap 樣式
+document.querySelectorAll('select, textarea').forEach(el => {
+    el.classList.add('form-control');
+});
+</script>
+{% endblock %}

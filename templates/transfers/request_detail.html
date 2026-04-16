@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}申請詳情 #{{ request.id }} - 社團轉社系統{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">轉社申請單 #{{ request.id }}</h4>
+                <span class="badge bg-light text-dark fs-6">{{ request.get_status_display }}</span>
+            </div>
+            <div class="card-body">
+                <!-- 進度追蹤 -->
+                <h6 class="text-muted mb-3">審核進度</h6>
+                <div class="progress-tracker mb-4">
+                    <div class="progress-step {% if request.status == 'orig_president_pending' %}active{% elif request.status != 'draft' %}completed{% else %}pending{% endif %}">
+                        <span class="badge">1</span>
+                        <small>原社長</small>
+                    </div>
+                    <div class="progress-step {% if request.status == 'orig_teacher_pending' %}active{% elif request.status == 'new_president_pending' or request.status == 'new_teacher_pending' or request.status == 'admin_pending' or request.status == 'approved' %}completed{% else %}pending{% endif %}">
+                        <span class="badge">2</span>
+                        <small>原老師</small>
+                    </div>
+                    <div class="progress-step {% if request.status == 'new_president_pending' %}active{% elif request.status == 'new_teacher_pending' or request.status == 'admin_pending' or request.status == 'approved' %}completed{% else %}pending{% endif %}">
+                        <span class="badge">3</span>
+                        <small>新社長</small>
+                    </div>
+                    <div class="progress-step {% if request.status == 'new_teacher_pending' %}active{% elif request.status == 'admin_pending' or request.status == 'approved' %}completed{% else %}pending{% endif %}">
+                        <span class="badge">4</span>
+                        <small>新老師</small>
+                    </div>
+                    <div class="progress-step {% if request.status == 'admin_pending' %}active{% elif request.status == 'approved' %}completed{% else %}pending{% endif %}">
+                        <span class="badge">5</span>
+                        <small>訓育組</small>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <!-- 申請資訊 -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted">申請資訊</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td>申請人</td>
+                                <td>{{ request.student.get_full_name|default:request.student.username }}</td>
+                            </tr>
+                            <tr>
+                                <td>原社團</td>
+                                <td>{{ request.original_club.name }}</td>
+                            </tr>
+                            <tr>
+                                <td>目標社團</td>
+                                <td>{{ request.target_club.name }}</td>
+                            </tr>
+                            <tr>
+                                <td>申請時間</td>
+                                <td>{{ request.created_at|date:"Y/m/d H:i" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted">目前狀態</h6>
+                        <p>
+                            {% if request.status == 'approved' %}
+                                <span class="text-success">您的轉社申請已完成所有審核並核准！</span>
+                            {% elif request.status == 'rejected' %}
+                                <span class="text-danger">您的申請已被拒絕。</span>
+                            {% elif request.status == 'returned' %}
+                                <span class="text-warning">申請被退回，請重新選擇目標社團。</span>
+                            {% else %}
+                                {% if current_approver %}
+                                    等待 <strong>{{ current_approver.get_full_name|default:current_approver.username }}</strong> 審核中
+                                {% else %}
+                                    等待訓育組審核
+                                {% endif %}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                
+                {% if request.reason %}
+                <hr>
+                <h6 class="text-muted">轉社原因</h6>
+                <p>{{ request.reason|linebreaks }}</p>
+                {% endif %}
+                
+                <!-- 審核紀錄 -->
+                {% if logs %}
+                <hr>
+                <h6 class="text-muted">審核紀錄</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>時間</th>
+                                <th>審核人</th>
+                                <th>階段</th>
+                                <th>結果</th>
+                                <th>意見</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                            <tr>
+                                <td>{{ log.created_at|date:"m/d H:i" }}</td>
+                                <td>{{ log.approver.get_full_name|default:log.approver.username }}</td>
+                                <td>{{ log.get_approval_stage_display|default:log.approval_stage }}</td>
+                                <td>
+                                    {% if log.result == 'approve' %}
+                                        <span class="badge bg-success">同意</span>
+                                    {% elif log.result == 'reject' %}
+                                        <span class="badge bg-danger">拒絕</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">退回</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.comment|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <a href="{% url 'my_requests' %}" class="btn btn-secondary">返回列表</a>
+                {% if request.status == 'returned' %}
+                    <a href="{% url 'reselect_club' request.pk %}" class="btn btn-warning">重新選擇社團</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

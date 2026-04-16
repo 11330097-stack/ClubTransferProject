@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}社團列表 - 社團轉社系統{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">社團列表</h2>
+
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    {% for club in clubs %}
+    <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ club.name }}</h5>
+                <p class="card-text text-muted">
+                    {{ club.description|truncatewords:20|default:"暫無描述" }}
+                </p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-primary">{{ club.current_members }}/{{ club.max_members }} 人</span>
+                    {% if club.has_available_slots %}
+                        <span class="badge bg-success">尚有名額</span>
+                    {% else %}
+                        <span class="badge bg-danger">已額滿</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="{% url 'club_detail' club.pk %}" class="btn btn-outline-primary btn-sm w-100">
+                    查看詳情
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info">目前沒有社團資料</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

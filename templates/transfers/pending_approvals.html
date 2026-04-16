@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}待審核申請 - 社團轉社系統{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">待審核申請</h2>
+
+{% if pending_requests %}
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>申請時間</th>
+                <th>申請人</th>
+                <th>轉出社團</th>
+                <th>轉入社團</th>
+                <th>審核階段</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in pending_requests %}
+            <tr>
+                <td>{{ req.created_at|date:"Y/m/d H:i" }}</td>
+                <td>{{ req.student.get_full_name|default:req.student.username }}</td>
+                <td>{{ req.original_club.name }}</td>
+                <td>{{ req.target_club.name }}</td>
+                <td>{{ req.get_status_display }}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approveModal{{ req.id }}">
+                        同意
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ req.id }}">
+                        拒絕
+                    </button>
+                    {% if req.status in 'new_president_pending,new_teacher_pending' %}
+                    <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#returnModal{{ req.id }}">
+                        退回重選
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            
+            <!-- 同意 Modal -->
+            <div class="modal fade" id="approveModal{{ req.id }}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">確認同意轉社申請</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>申請人：</strong>{{ req.student.get_full_name|default:req.student.username }}</p>
+                            <p><strong>轉出：</strong>{{ req.original_club.name }}</p>
+                            <p><strong>轉入：</strong>{{ req.target_club.name }}</p>
+                            <form id="approveForm{{ req.id }}" method="post" action="{% url 'approve_request' req.pk %}">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="form-label">審核意見（選填）</label>
+                                    <textarea name="comment" class="form-control" rows="3"></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="submit" form="approveForm{{ req.id }}" class="btn btn-success">確認同意</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 拒絕 Modal -->
+            <div class="modal fade" id="rejectModal{{ req.id }}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">確認拒絕轉社申請</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>申請人：</strong>{{ req.student.get_full_name|default:req.student.username }}</p>
+                            <form id="rejectForm{{ req.id }}" method="post" action="{% url 'reject_request' req.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="reject">
+                                <div class="mb-3">
+                                    <label class="form-label">拒絕原因 <span class="text-danger">*</span></label>
+                                    <textarea name="comment" class="form-control" rows="3" required></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="submit" form="rejectForm{{ req.id }}" class="btn btn-danger">確認拒絕</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 退回重選 Modal -->
+            {% if req.status in 'new_president_pending,new_teacher_pending' %}
+            <div class="modal fade" id="returnModal{{ req.id }}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">退回申請讓學生重選</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>退回後，學生可以保留原社團的轉出審核結果，直接選擇其他社團轉入，無需重新跑原社團流程。</p>
+                            <form id="returnForm{{ req.id }}" method="post" action="{% url 'reject_request' req.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="return">
+                                <div class="mb-3">
+                                    <label class="form-label">退回原因</label>
+                                    <textarea name="comment" class="form-control" rows="3"></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="submit" form="returnForm{{ req.id }}" class="btn btn-warning">確認退回</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <p>目前沒有需要您審核的申請。</p>
+</div>
+{% endif %}
+{% endblock %}
