@@ -104,6 +104,9 @@ class TransferRequest(models.Model):
             'approved',
         ]
         
+        if self.status not in flow:
+            return False
+
         current_index = flow.index(self.status)
         if current_index < len(flow) - 1:
             self.status = flow[current_index + 1]

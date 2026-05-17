@@ -11,6 +11,15 @@ from clubs.models import Club
 from accounts.models import User
 
 
+REVIEWABLE_STATUSES = [
+    'orig_president_pending',
+    'orig_teacher_pending',
+    'new_president_pending',
+    'new_teacher_pending',
+    'admin_pending',
+]
+
+
 class StudentRequiredMixin(UserPassesTestMixin):
     """檢查是否為學生"""
     def test_func(self):
@@ -231,24 +240,35 @@ class ApproveRequestView(LoginRequiredMixin, View):
     核准申請
     """
     def post(self, request, pk):
-        transfer_request = get_object_or_404(TransferRequest, pk=pk)
-        
-        if not transfer_request.can_be_approved_by(request.user):
-            messages.error(request, '您沒有權限核准此申請')
-            return redirect('home')
-        
-        # 記錄審核
-        ApprovalLog.objects.create(
-            transfer_request=transfer_request,
-            approver=request.user,
-            approval_stage=transfer_request.status,
-            result='approve',
-            comment=request.POST.get('comment', '')
-        )
-        
         with transaction.atomic():
+            transfer_request = get_object_or_404(
+                TransferRequest.objects.select_for_update(),
+                pk=pk,
+            )
+
+            if transfer_request.status not in REVIEWABLE_STATUSES:
+                messages.error(request, '此申請目前不能審核，可能已核准、拒絕或退回。')
+                return redirect('pending_approvals')
+
+            if not transfer_request.can_be_approved_by(request.user):
+                messages.error(request, '您不是此申請目前階段的審核人。')
+                return redirect('home')
+
+            approval_stage = transfer_request.status
+
             # 最後核准階段：更新社團人數
             if transfer_request.status == 'admin_pending':
+                transfer_request.target_club = Club.objects.select_for_update().get(
+                    pk=transfer_request.target_club_id
+                )
+                transfer_request.original_club = Club.objects.select_for_update().get(
+                    pk=transfer_request.original_club_id
+                )
+
+                if not transfer_request.target_club.has_available_slots():
+                    messages.error(request, '目標社團已額滿，無法核准此轉社申請。')
+                    return redirect('pending_approvals')
+
                 transfer_request.original_club.decrement_members()
                 transfer_request.target_club.increment_members()
                 
@@ -260,7 +280,19 @@ class ApproveRequestView(LoginRequiredMixin, View):
                 transfer_request.completed_at = timezone.now()
             
             # 推進到下一階段
-            transfer_request.advance_status()
+            if not transfer_request.advance_status():
+                transaction.set_rollback(True)
+                messages.error(request, '申請狀態無法前進，請重新整理後再試。')
+                return redirect('pending_approvals')
+
+            # 記錄審核
+            ApprovalLog.objects.create(
+                transfer_request=transfer_request,
+                approver=request.user,
+                approval_stage=approval_stage,
+                result='approve',
+                comment=request.POST.get('comment', '')
+            )
         
         messages.success(request, '申請已核准')
         return redirect('pending_approvals')
@@ -271,20 +303,33 @@ class RejectRequestView(LoginRequiredMixin, View):
     拒絕/退回申請
     """
     def post(self, request, pk):
-        transfer_request = get_object_or_404(TransferRequest, pk=pk)
         action = request.POST.get('action', 'reject')
         comment = request.POST.get('comment', '')
-        
-        if not transfer_request.can_be_approved_by(request.user):
-            messages.error(request, '您沒有權限處理此申請')
-            return redirect('home')
+
+        if action not in ['reject', 'return']:
+            action = 'reject'
         
         with transaction.atomic():
+            transfer_request = get_object_or_404(
+                TransferRequest.objects.select_for_update(),
+                pk=pk,
+            )
+
+            if transfer_request.status not in REVIEWABLE_STATUSES:
+                messages.error(request, '此申請目前不能審核，可能已核准、拒絕或退回。')
+                return redirect('pending_approvals')
+
+            if not transfer_request.can_be_approved_by(request.user):
+                messages.error(request, '您不是此申請目前階段的審核人。')
+                return redirect('home')
+
+            approval_stage = transfer_request.status
+
             # 記錄審核
             ApprovalLog.objects.create(
                 transfer_request=transfer_request,
                 approver=request.user,
-                approval_stage=transfer_request.status,
+                approval_stage=approval_stage,
                 result='reject' if action == 'reject' else 'return',
                 comment=comment
             )
