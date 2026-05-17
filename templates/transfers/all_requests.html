@@ -47,39 +47,41 @@
                     {% endif %}
                 </td>
             </tr>
-            
-            {% if req.status == 'admin_pending' %}
-            <div class="modal fade" id="approveModal{{ req.id }}" tabindex="-1">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">最終核定轉社申請</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p><strong>申請人：</strong>{{ req.student.get_full_name|default:req.student.username }}</p>
-                            <p><strong>轉出：</strong>{{ req.original_club.name }}</p>
-                            <p><strong>轉入：</strong>{{ req.target_club.name }}</p>
-                            <form id="approveForm{{ req.id }}" method="post" action="{% url 'approve_request' req.pk %}">
-                                {% csrf_token %}
-                                <div class="mb-3">
-                                    <label class="form-label">核定意見（選填）</label>
-                                    <textarea name="comment" class="form-control" rows="3"></textarea>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="submit" form="approveForm{{ req.id }}" class="btn btn-success">確認核定</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+{% for req in requests %}
+{% if req.status == 'admin_pending' %}
+<div class="modal fade" id="approveModal{{ req.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">最終核定轉社申請</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>申請人：</strong>{{ req.student.get_full_name|default:req.student.username }}</p>
+                <p><strong>轉出：</strong>{{ req.original_club.name }}</p>
+                <p><strong>轉入：</strong>{{ req.target_club.name }}</p>
+                <form id="approveForm{{ req.id }}" method="post" action="{% url 'approve_request' req.pk %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">核定意見（選填）</label>
+                        <textarea name="comment" class="form-control" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="submit" form="approveForm{{ req.id }}" class="btn btn-success">確認核定</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
 
 <!-- 統計摘要 -->
 <div class="row mt-4">
