@@ -5,6 +5,7 @@ from django.urls import reverse_lazy
 from django.contrib import messages
 from django.db import transaction, models
 from django.utils import timezone
+from django.core.exceptions import PermissionDenied
 from .models import TransferRequest, ApprovalLog
 from clubs.models import Club
 from accounts.models import User
@@ -114,6 +115,21 @@ class RequestDetailView(LoginRequiredMixin, DetailView):
     model = TransferRequest
     template_name = 'transfers/request_detail.html'
     context_object_name = 'request'
+
+    def get_object(self, queryset=None):
+        transfer_request = super().get_object(queryset)
+        user = self.request.user
+
+        if transfer_request.student == user:
+            return transfer_request
+
+        if user.is_admin():
+            return transfer_request
+
+        if transfer_request.can_be_approved_by(user):
+            return transfer_request
+
+        raise PermissionDenied
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
