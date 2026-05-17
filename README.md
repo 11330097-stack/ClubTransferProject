@@ -52,14 +52,25 @@ python manage.py runserver
 
 瀏覽器開啟 http://127.0.0.1:8000/
 
-## 測試帳號
+## Demo 帳號
 
 | 角色 | 帳號 | 密碼 |
 |------|------|------|
-| 訓育組(管理員) | admin | admin123 |
-| 社長 | president1~4 | president123 |
-| 指導老師 | teacher1~3 | teacher123 |
-| 學生 | student1~5 | student123 |
+| 訓育組 / 管理員 | admin | admin123 |
+| 社長 | student001 ~ student037 | student123 |
+| 一般學生 | student038 ~ student345 | student123 |
+| 指導老師 | teacher001 ~ teacher037 | teacher123 |
+
+舊 demo 帳號 `president1~president4`、`student1~student5`、`teacher1~teacher3` 已停用，請不要用於展示流程。
+
+## Demo 主流程範例
+
+1. `student038` 登入後送出轉社申請，例如從 D001 籃球社轉到 D002 排球社。
+2. `student001` 以原社團社長身分審核。
+3. `teacher001` 以原社團指導老師身分審核。
+4. `student002` 以新社團社長身分審核。
+5. `teacher002` 以新社團指導老師身分審核。
+6. `admin` 以訓育組身分做最終核准。
 
 ## 角色權限
 

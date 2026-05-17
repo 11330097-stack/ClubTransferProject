@@ -14,6 +14,11 @@
             <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-lg">申請轉社</a>
             <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">查看申請進度</a>
         </div>
+    {% elif user.role == 'admin' %}
+        <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-4">
+            <a href="{% url 'pending_approvals' %}" class="btn btn-primary btn-lg">待審核申請</a>
+            <a href="{% url 'all_requests' %}" class="btn btn-outline-primary btn-lg">全部申請紀錄</a>
+        </div>
     {% endif %}
 {% endif %}
 
