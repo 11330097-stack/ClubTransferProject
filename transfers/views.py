@@ -26,6 +26,18 @@ class StudentRequiredMixin(UserPassesTestMixin):
         return self.request.user.role in ['student', 'president']
 
 
+class TransferApplicantRequiredMixin(UserPassesTestMixin):
+    """檢查是否可送出轉社申請"""
+    def test_func(self):
+        return self.request.user.role == 'student'
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated and self.request.user.role == 'president':
+            messages.error(self.request, '社長目前不可申請轉社，請先完成社長交接')
+            return redirect('home')
+        return super().handle_no_permission()
+
+
 class ApproverRequiredMixin(UserPassesTestMixin):
     """檢查是否為審核者（社長、老師、管理員）"""
     def test_func(self):
@@ -38,7 +50,7 @@ class AdminRequiredMixin(UserPassesTestMixin):
         return self.request.user.is_admin()
 
 
-class TransferApplyView(LoginRequiredMixin, StudentRequiredMixin, CreateView):
+class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, CreateView):
     """
     提交轉社申請
     """
@@ -73,6 +85,10 @@ class TransferApplyView(LoginRequiredMixin, StudentRequiredMixin, CreateView):
     
     def form_valid(self, form):
         user = self.request.user
+
+        if user.role == 'president':
+            messages.error(self.request, '社長目前不可申請轉社，請先完成社長交接')
+            return redirect('home')
         
         if not user.club:
             messages.error(self.request, '您目前沒有所屬社團，無法申請轉社')
