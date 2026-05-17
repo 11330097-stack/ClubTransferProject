@@ -12,9 +12,9 @@
             <div class="card-body">
                 <h6 class="text-muted">社團描述</h6>
                 <p>{{ club.description|default:"暫無描述"|linebreaks }}</p>
-                
+
                 <hr>
-                
+
                 <div class="row text-center">
                     <div class="col-4">
                         <div class="p-3 bg-light rounded">
@@ -25,7 +25,7 @@
                     <div class="col-4">
                         <div class="p-3 bg-light rounded">
                             <h3 class="mb-0">{{ pending_count }}</h3>
-                            <small class="text-muted">待審核轉入</small>
+                            <small class="text-muted">待審核</small>
                         </div>
                     </div>
                     <div class="col-4">
@@ -48,34 +48,34 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-4">
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">社團資訊</h6>
             </div>
             <div class="card-body">
-                <p><strong>指導老師：</strong><br>{{ club.teacher.get_full_name|default:"未設定" }}</p>
-                <p><strong>社長：</strong><br>{{ club.president.get_full_name|default:"未設定" }}</p>
+                <p><strong>指導老師：</strong><br>{{ club.teacher|default:"未設定" }}</p>
+                <p><strong>社長：</strong><br>{{ club.president|default:"未設定" }}</p>
                 <p><strong>人數上限：</strong>{{ club.max_members }} 人</p>
             </div>
         </div>
-        
+
         <div class="card mt-3">
             <div class="card-header">
-                <h6 class="mb-0">社員名單</h6>
+                <h6 class="mb-0">社團成員</h6>
             </div>
             <div class="card-body p-0">
                 <ul class="list-group list-group-flush">
                     {% for member in members %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ member.get_full_name|default:member.username }}
-                            {% if member == club.president %}
+                            {% if member.username in club.president %}
                                 <span class="badge bg-primary">社長</span>
                             {% endif %}
                         </li>
                     {% empty %}
-                        <li class="list-group-item text-muted">暫無社員</li>
+                        <li class="list-group-item text-muted">暫無成員</li>
                     {% endfor %}
                 </ul>
             </div>

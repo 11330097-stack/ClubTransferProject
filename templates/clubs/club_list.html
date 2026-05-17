@@ -14,6 +14,12 @@
                 <p class="card-text text-muted">
                     {{ club.description|truncatewords:20|default:"暫無描述" }}
                 </p>
+                <p class="card-text text-muted mb-1">
+                    <small>指導老師：{{ club.teacher|default:"未設定" }}</small>
+                </p>
+                <p class="card-text text-muted">
+                    <small>社長：{{ club.president|default:"未設定" }}</small>
+                </p>
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="badge bg-primary">{{ club.current_members }}/{{ club.max_members }} 人</span>
                     {% if club.has_available_slots %}
