@@ -2,6 +2,30 @@ from django.db import models
 from django.conf import settings
 from django.core.mail import send_mail
 from django.urls import reverse
+import re
+
+
+def get_user_from_display_text(value):
+    """Resolve a User from text like '學生001 (student001)'."""
+    if not value:
+        return None
+
+    if not isinstance(value, str):
+        return value
+
+    match = re.search(r'\(([^()]+)\)\s*$', value.strip())
+    username = match.group(1).strip() if match else value.strip()
+    if not username:
+        return None
+
+    from django.apps import apps
+
+    app_label, model_name = settings.AUTH_USER_MODEL.split('.', 1)
+    User = apps.get_model(app_label, model_name)
+    try:
+        return User.objects.get(username=username)
+    except User.DoesNotExist:
+        return None
 
 
 class TransferRequest(models.Model):
@@ -67,7 +91,7 @@ class TransferRequest(models.Model):
             'new_teacher_pending': self.target_club.teacher,
             'admin_pending': None,  # 訓育組為管理員群組
         }
-        return approvers.get(self.status)
+        return get_user_from_display_text(approvers.get(self.status))
     
     def advance_status(self):
         """推進到下一個審核階段"""
@@ -112,7 +136,7 @@ class TransferRequest(models.Model):
         """發送通知給下一個審核者"""
         approver = self.get_current_approver()
         
-        if approver and approver.email:
+        if approver and getattr(approver, 'email', None):
             subject = f'【社團轉社系統】有新的轉社申請需要審核'
             message = f'''
 您好，{approver.get_full_name() or approver.username}：

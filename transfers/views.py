@@ -181,25 +181,33 @@ class PendingApprovalsView(LoginRequiredMixin, ApproverRequiredMixin, ListView):
             return TransferRequest.objects.filter(status='admin_pending')
         
         # 社長/老師查看需要他們審核的申請
-        status_map = {
-            'president': ['orig_president_pending', 'new_president_pending'],
-            'teacher': ['orig_teacher_pending', 'new_teacher_pending'],
-        }
-        
-        pending = []
-        for status in status_map.get(user.role, []):
-            if status == 'orig_president_pending' and user == user.club.president:
-                pending.extend(TransferRequest.objects.filter(status=status, original_club=user.club))
-            elif status == 'orig_teacher_pending' and user == user.club.teacher:
-                pending.extend(TransferRequest.objects.filter(status=status, original_club=user.club))
-            elif status == 'new_president_pending' and user.leading_clubs.exists():
-                pending.extend(TransferRequest.objects.filter(status=status, target_club__president=user))
-            elif status == 'new_teacher_pending' and user.teaching_clubs.exists():
-                pending.extend(TransferRequest.objects.filter(status=status, target_club__teacher=user))
-        
-        return TransferRequest.objects.filter(
-            id__in=[r.id for r in pending]
-        ).distinct()
+        username_marker = f'({user.username})'
+
+        if user.role == 'president':
+            return TransferRequest.objects.filter(
+                models.Q(
+                    status='orig_president_pending',
+                    original_club__president__icontains=username_marker,
+                ) |
+                models.Q(
+                    status='new_president_pending',
+                    target_club__president__icontains=username_marker,
+                )
+            ).distinct()
+
+        if user.role == 'teacher':
+            return TransferRequest.objects.filter(
+                models.Q(
+                    status='orig_teacher_pending',
+                    original_club__teacher__icontains=username_marker,
+                ) |
+                models.Q(
+                    status='new_teacher_pending',
+                    target_club__teacher__icontains=username_marker,
+                )
+            ).distinct()
+
+        return TransferRequest.objects.none()
 
 
 class ApproveRequestView(LoginRequiredMixin, View):

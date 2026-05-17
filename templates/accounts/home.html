@@ -4,19 +4,15 @@
 
 {% block content %}
 <div class="text-center mb-4">
-    <h1 class="display-5">社團轉社電子化系統</h1>
+    <h1 class="display-5">社團轉社系統</h1>
     <p class="lead text-muted">線上申請、透明審核、自動化管理</p>
 </div>
 
 {% if user.is_authenticated %}
     {% if user.role == 'student' or user.role == 'president' %}
         <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-4">
-            <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-lg">
-                申請轉社
-            </a>
-            <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">
-                查看申請進度
-            </a>
+            <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-lg">申請轉社</a>
+            <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">查看申請進度</a>
         </div>
     {% endif %}
 {% endif %}
@@ -29,10 +25,13 @@
         <div class="card club-card h-100">
             <div class="card-body">
                 <h5 class="card-title">{{ info.club.name }}</h5>
-                <p class="card-text text-muted">
-                    <small>指導老師：{{ info.club.teacher.get_full_name|default:"未設定" }}</small>
+                <p class="card-text text-muted mb-1">
+                    <small>指導老師：{{ info.club.teacher|default:"未設定" }}</small>
                 </p>
-                
+                <p class="card-text text-muted">
+                    <small>社長：{{ info.club.president|default:"未設定" }}</small>
+                </p>
+
                 <div class="row text-center g-2">
                     <div class="col-4">
                         <div class="p-2 bg-light rounded">
@@ -53,12 +52,12 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="mt-3">
                     <div class="progress" style="height: 20px;">
                         {% widthratio info.club.current_members info.club.max_members 100 as percentage %}
-                        <div class="progress-bar {% if percentage >= 100 %}bg-danger{% elif percentage >= 80 %}bg-warning{% else %}bg-success{% endif %}" 
-                             role="progressbar" 
+                        <div class="progress-bar {% if percentage >= 100 %}bg-danger{% elif percentage >= 80 %}bg-warning{% else %}bg-success{% endif %}"
+                             role="progressbar"
                              style="width: {{ percentage }}%">
                             {{ info.club.current_members }}/{{ info.club.max_members }}
                         </div>
