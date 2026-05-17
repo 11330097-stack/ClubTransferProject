@@ -4,17 +4,19 @@ Initialize deterministic demo data.
 Usage:
     python manage.py init_demo_data
 """
-from django.core.management.base import BaseCommand
 from django.contrib.auth.hashers import make_password
+from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from accounts.models import User
 from clubs.models import Club
 
 
-TOTAL_STUDENTS = 345
+TOTAL_ACCOUNTS = 345
+PRESIDENT_COUNT = 24
 REGULAR_CLUB_COUNT = 23
-STUDENTS_PER_REGULAR_CLUB = 14
+REGULAR_CLUB_TARGET_MEMBERS = 14
+DRAMA_CLUB_TARGET_MEMBERS = 23
 DEFAULT_STUDENT_PASSWORD = "student123"
 
 
@@ -47,23 +49,24 @@ DEMO_CLUBS = [
 
 
 class Command(BaseCommand):
-    help = "初始化 Demo 社團資料與 student001~student345 學生帳號"
+    help = "初始化 Demo 社團資料與 student001~student345 帳號"
 
     def handle(self, *args, **kwargs):
         with transaction.atomic():
             clubs = self.create_demo_clubs()
-            created_count, updated_count = self.create_demo_students(clubs)
+            created_count, updated_count = self.create_demo_accounts(clubs)
             self.update_current_members(clubs)
 
         self.stdout.write(self.style.SUCCESS("Demo data initialized."))
         self.stdout.write(f"  Clubs: {len(clubs)}")
-        self.stdout.write(f"  Students created: {created_count}")
-        self.stdout.write(f"  Students updated: {updated_count}")
-        self.stdout.write("  Student accounts: student001 ~ student345")
-        self.stdout.write(f"  Student password: {DEFAULT_STUDENT_PASSWORD}")
+        self.stdout.write(f"  Accounts created: {created_count}")
+        self.stdout.write(f"  Accounts updated: {updated_count}")
+        self.stdout.write("  President accounts: student001 ~ student024")
+        self.stdout.write("  Student accounts: student025 ~ student345")
+        self.stdout.write(f"  Password: {DEFAULT_STUDENT_PASSWORD}")
         self.stdout.write("  Distribution:")
         for club in clubs:
-            self.stdout.write(f"    - {club.name}: {club.current_members}")
+            self.stdout.write(f"    - {club.name}: {club.current_members}, president={club.president}")
 
     def create_demo_clubs(self):
         clubs = []
@@ -88,6 +91,7 @@ class Command(BaseCommand):
                     },
                 )
             else:
+                club.code = data["code"]
                 club.name = data["name"]
                 club.category = data["category"]
                 club.location = data["location"]
@@ -101,21 +105,28 @@ class Command(BaseCommand):
 
         return clubs
 
-    def create_demo_students(self, clubs):
+    def create_demo_accounts(self, clubs):
         created_count = 0
         updated_count = 0
         password_hash = make_password(DEFAULT_STUDENT_PASSWORD)
+        member_slots = self.build_member_slots(clubs)
 
-        for i in range(1, TOTAL_STUDENTS + 1):
-            assigned_club = self.get_assigned_club(i, clubs)
+        for i in range(1, TOTAL_ACCOUNTS + 1):
             username = f"student{i:03d}"
 
-            student, created = User.objects.get_or_create(
+            if i <= PRESIDENT_COUNT:
+                assigned_club = clubs[i - 1]
+                role = "president"
+            else:
+                assigned_club = member_slots[i - PRESIDENT_COUNT - 1]
+                role = "student"
+
+            account, created = User.objects.get_or_create(
                 username=username,
                 defaults={
                     "first_name": f"學生{i:03d}",
                     "email": f"{username}@school.edu.tw",
-                    "role": "student",
+                    "role": role,
                     "student_id": f"2026{i:03d}",
                     "phone": f"09{i:08d}"[-10:],
                     "club": assigned_club,
@@ -123,15 +134,19 @@ class Command(BaseCommand):
                 },
             )
 
-            student.first_name = f"學生{i:03d}"
-            student.email = f"{username}@school.edu.tw"
-            student.role = "student"
-            student.student_id = f"2026{i:03d}"
-            student.phone = f"09{i:08d}"[-10:]
-            student.club = assigned_club
-            student.is_active = True
-            student.password = password_hash
-            student.save()
+            account.first_name = f"學生{i:03d}"
+            account.email = f"{username}@school.edu.tw"
+            account.role = role
+            account.student_id = f"2026{i:03d}"
+            account.phone = f"09{i:08d}"[-10:]
+            account.club = assigned_club
+            account.is_active = True
+            account.password = password_hash
+            account.save()
+
+            if role == "president":
+                assigned_club.president = f"{account.first_name} ({account.username})"
+                assigned_club.save(update_fields=["president"])
 
             if created:
                 created_count += 1
@@ -140,19 +155,24 @@ class Command(BaseCommand):
 
         return created_count, updated_count
 
-    def get_assigned_club(self, student_number, clubs):
-        regular_student_count = REGULAR_CLUB_COUNT * STUDENTS_PER_REGULAR_CLUB
+    def build_member_slots(self, clubs):
+        slots = []
 
-        if student_number <= regular_student_count:
-            club_index = (student_number - 1) // STUDENTS_PER_REGULAR_CLUB
-            return clubs[club_index]
+        for club in clubs[:REGULAR_CLUB_COUNT]:
+            slots.extend([club] * (REGULAR_CLUB_TARGET_MEMBERS - 1))
 
-        return clubs[-1]
+        slots.extend([clubs[-1]] * (DRAMA_CLUB_TARGET_MEMBERS - 1))
+
+        expected_students = TOTAL_ACCOUNTS - PRESIDENT_COUNT
+        if len(slots) != expected_students:
+            raise ValueError(f"Expected {expected_students} student slots, got {len(slots)}")
+
+        return slots
 
     def update_current_members(self, clubs):
         for club in clubs:
             club.current_members = User.objects.filter(
-                role="student",
+                role__in=["student", "president"],
                 club=club,
                 is_active=True,
             ).count()
