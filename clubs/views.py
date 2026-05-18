@@ -12,7 +12,25 @@ class ClubListView(LoginRequiredMixin, ListView):
     context_object_name = 'clubs'
     
     def get_queryset(self):
-        return Club.objects.filter(is_active=True)
+        return Club.objects.filter(is_active=True).prefetch_related('transfer_in_requests')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        club_info = []
+        for club in context['clubs']:
+            pending_count = club.transfer_in_requests.filter(
+                status__in=['new_president_pending', 'new_teacher_pending']
+            ).count()
+
+            club_info.append({
+                'club': club,
+                'pending_count': pending_count,
+                'remaining_slots': club.get_remaining_slots(),
+            })
+
+        context['club_info_list'] = club_info
+        return context
 
 
 class ClubDetailView(LoginRequiredMixin, DetailView):
