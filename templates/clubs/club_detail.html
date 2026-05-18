@@ -40,7 +40,7 @@
                 <a href="{% url 'club_list' %}" class="btn btn-secondary">返回列表</a>
                 {% if user.role == 'student' or user.role == 'president' %}
                     {% if club.has_available_slots %}
-                        <a href="{% url 'transfer_apply' %}" class="btn btn-primary">申請轉入</a>
+                        <a href="{% url 'transfer_apply' %}?target_club={{ club.pk }}" class="btn btn-primary">申請轉入</a>
                     {% else %}
                         <button class="btn btn-secondary" disabled>已額滿</button>
                     {% endif %}

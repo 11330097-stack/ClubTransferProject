@@ -80,6 +80,10 @@ class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, Crea
         form.fields['target_club'].empty_label = '請選擇社團'
         form.fields['reason'].label = '轉社原因'
         form.fields['reason'].widget.attrs['rows'] = 4
+
+        target_club_id = self.request.GET.get('target_club')
+        if target_club_id and available_clubs.filter(pk=target_club_id).exists():
+            form.initial['target_club'] = target_club_id
         
         return form
     
