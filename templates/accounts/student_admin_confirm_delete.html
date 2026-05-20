@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}刪除學生帳號{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">刪除學生帳號</h1>
+
+<div class="alert alert-danger">
+    <p class="mb-2">
+        請確認是否要刪除學生帳號：
+        <strong>{{ student.first_name|default:student.username }}</strong>
+        ({{ student.username }})
+    </p>
+    <p class="mb-0">
+        如果此學生已有轉社申請或審核紀錄，系統會為了保留歷史資料而改為停用帳號，不會真正刪除。
+        只有沒有任何歷史紀錄的學生帳號才會被真正刪除。
+    </p>
+</div>
+
+<dl class="row">
+    <dt class="col-sm-2">Username</dt>
+    <dd class="col-sm-10">{{ student.username }}</dd>
+    <dt class="col-sm-2">Student ID</dt>
+    <dd class="col-sm-10">{{ student.student_id|default:"-" }}</dd>
+    <dt class="col-sm-2">Name</dt>
+    <dd class="col-sm-10">{{ student.first_name|default:"-" }}</dd>
+    <dt class="col-sm-2">Club</dt>
+    <dd class="col-sm-10">{{ student.club|default:"-" }}</dd>
+    <dt class="col-sm-2">Status</dt>
+    <dd class="col-sm-10">
+        {% if student.is_active %}
+            <span class="badge bg-success">啟用</span>
+        {% else %}
+            <span class="badge bg-secondary">停用</span>
+        {% endif %}
+    </dd>
+</dl>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">確認刪除</button>
+    <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+</form>
+{% endblock %}

@@ -1,18 +1,22 @@
-from django.urls import path
 from django.contrib.auth import views as auth_views
+from django.urls import path
+
 from . import views
 
+
 urlpatterns = [
-    # 首頁
     path('', views.HomeView.as_view(), name='home'),
-    
-    # 認證相關
     path('login/', auth_views.LoginView.as_view(
         template_name='accounts/login.html',
-        redirect_authenticated_user=True
+        redirect_authenticated_user=True,
     ), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-    
-    # 使用者資訊
     path('profile/', views.ProfileView.as_view(), name='profile'),
+    path('admin-panel/students/', views.StudentAdminListView.as_view(), name='student_admin_list'),
+    path('admin-panel/students/create/', views.StudentAdminCreateView.as_view(), name='student_admin_create'),
+    path('admin-panel/students/<int:pk>/edit/', views.StudentAdminUpdateView.as_view(), name='student_admin_edit'),
+    path('admin-panel/students/<int:pk>/deactivate/', views.StudentAdminDeactivateView.as_view(), name='student_admin_deactivate'),
+    path('admin-panel/students/<int:pk>/reactivate/', views.StudentAdminReactivateView.as_view(), name='student_admin_reactivate'),
+    path('admin-panel/students/<int:pk>/delete/', views.StudentAdminDeleteView.as_view(), name='student_admin_delete'),
+    path('admin-panel/students/import/', views.StudentCsvImportView.as_view(), name='student_admin_import'),
 ]

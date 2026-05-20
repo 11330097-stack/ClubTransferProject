@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}匯入學生 CSV{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">匯入學生 CSV</h1>
+    <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回學生管理</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card card-body mb-3">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <div>
+        <button type="submit" class="btn btn-primary">匯入</button>
+    </div>
+</form>
+
+<div class="card card-body mb-3">
+    <h2 class="h5">CSV 範例</h2>
+    <p class="mb-2">欄位必須包含 username, student_id, name, email, phone, club_code, password。新帳號 password 必填。</p>
+    <pre class="mb-0">{{ sample_csv }}</pre>
+</div>
+
+{% if result %}
+    <div class="card card-body mb-3">
+        <h2 class="h5">匯入結果</h2>
+        <ul class="mb-0">
+            <li>新增：{{ result.created }} 筆</li>
+            <li>更新：{{ result.updated }} 筆</li>
+            <li>跳過：{{ result.skipped }} 筆</li>
+        </ul>
+    </div>
+
+    {% if result.errors %}
+        <div class="card card-body">
+            <h2 class="h5">錯誤列</h2>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>列號</th>
+                            <th>原因</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for error in result.errors %}
+                            <tr>
+                                <td>{{ error.row }}</td>
+                                <td>{{ error.reason }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:accounts_user_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; 匯入學生 CSV
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      <h2>上傳 CSV</h2>
+      <div class="form-row">
+        <label for="id_csv_file" class="required">CSV 檔案:</label>
+        <input type="file" name="csv_file" id="id_csv_file" accept=".csv,text/csv" required>
+      </div>
+    </fieldset>
+    <div class="submit-row">
+      <input type="submit" value="匯入" class="default">
+      <a href="{% url 'admin:accounts_user_changelist' %}" class="closelink">返回</a>
+    </div>
+  </form>
+
+  <div class="module">
+    <h2>CSV 範例</h2>
+    <p>欄位順序建議如下，檔案請使用 UTF-8 編碼。新帳號 password 必填；更新既有帳號時 password 可留空以保留原密碼。</p>
+    <pre>{{ sample_csv }}</pre>
+  </div>
+
+  {% if result %}
+    <div class="module">
+      <h2>匯入結果</h2>
+      <ul>
+        <li>新增：{{ result.created }} 筆</li>
+        <li>更新：{{ result.updated }} 筆</li>
+        <li>跳過：{{ result.skipped }} 筆</li>
+      </ul>
+    </div>
+
+    {% if result.errors %}
+      <div class="module">
+        <h2>錯誤列</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>列號</th>
+              <th>原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for error in result.errors %}
+              <tr>
+                <td>{{ error.row }}</td>
+                <td>{{ error.reason }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

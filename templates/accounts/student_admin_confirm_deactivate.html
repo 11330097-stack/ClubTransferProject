@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}停用學生{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">停用學生帳號</h1>
+
+<div class="alert alert-warning">
+    確定要停用 {{ student.first_name|default:student.username }} ({{ student.username }}) 嗎？資料不會被刪除。
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">停用</button>
+    <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+</form>
+{% endblock %}

@@ -76,6 +76,11 @@
                                 <a class="nav-link" href="{% url 'all_requests' %}">全校申請</a>
                             </li>
                         {% endif %}
+                        {% if user.is_superuser or user.role == 'admin' %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'student_admin_list' %}">學生管理</a>
+                            </li>
+                        {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
@@ -120,7 +125,7 @@
 
     <footer class="bg-light py-3 mt-5">
         <div class="container text-center text-muted">
-            <small>社團轉社電子化系統 &copy; 2024</small>
+            <small>社團轉社電子化系統 &copy; 2026</small>
         </div>
     </footer>
 
