@@ -56,5 +56,7 @@ class ClubDetailView(LoginRequiredMixin, DetailView):
         context['pending_count'] = pending_count
         context['remaining_slots'] = club.get_remaining_slots()
         context['members'] = club.members.all()
+        context['teacher_name'] = display_name_without_username(club.teacher)
+        context['president_name'] = display_name_without_username(club.president)
         
         return context
