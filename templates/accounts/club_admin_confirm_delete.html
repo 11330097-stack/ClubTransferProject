@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}安全刪除社團{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">安全刪除社團</h1>
+
+<div class="alert alert-danger">
+    <p class="mb-2">
+        請確認是否要安全刪除社團：
+        <strong>{{ club.name }}</strong>
+        {% if club.code %}({{ club.code }}){% endif %}
+    </p>
+    <p class="mb-0">
+        系統不會真正刪除社團資料，也不會刪除學生或老師帳號。送出後會解除啟用中學生與社長的社團分配、
+        清空社團老師與社長欄位，並將社團設為停用。
+    </p>
+</div>
+
+<dl class="row">
+    <dt class="col-sm-2">Code</dt>
+    <dd class="col-sm-10">{{ club.code|default:"-" }}</dd>
+    <dt class="col-sm-2">社團名稱</dt>
+    <dd class="col-sm-10">{{ club.name }}</dd>
+    <dt class="col-sm-2">老師</dt>
+    <dd class="col-sm-10">{{ club.teacher|default:"-" }}</dd>
+    <dt class="col-sm-2">社長</dt>
+    <dd class="col-sm-10">{{ club.president|default:"-" }}</dd>
+    <dt class="col-sm-2">將解除分配人數</dt>
+    <dd class="col-sm-10">{{ active_member_count }}</dd>
+</dl>
+
+{% if active_members %}
+    <div class="mb-3">
+        <h2 class="h5">將解除分配的前 10 位成員</h2>
+        <ul class="list-group">
+            {% for member in active_members %}
+                <li class="list-group-item">
+                    {{ member.username }} - {{ member.first_name|default:"-" }} ({{ member.get_role_display }})
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">確認安全刪除</button>
+    <a href="{% url 'club_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+</form>
+{% endblock %}

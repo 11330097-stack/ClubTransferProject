@@ -52,6 +52,86 @@ class ProfileView(LoginRequiredMixin, TemplateView):
     template_name = 'accounts/profile.html'
 
 
+def normalize_teacher_text(value):
+    return ' '.join((value or '').split())
+
+
+def get_teacher_match_values(teacher):
+    full_name = normalize_teacher_text(teacher.get_full_name())
+    first_name = normalize_teacher_text(teacher.first_name)
+    username = normalize_teacher_text(teacher.username)
+    display_name = full_name or first_name or username
+    values = {
+        username,
+        first_name,
+        full_name,
+        normalize_teacher_text(str(teacher)),
+    }
+    if display_name and username:
+        values.add(f'{display_name} ({username})')
+    return {value for value in values if value}
+
+
+class UnassignedStudentListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
+    model = User
+    template_name = 'accounts/unassigned_student_list.html'
+    context_object_name = 'students'
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = User.objects.filter(
+            role__in=['student', 'president'],
+            is_active=True,
+            club__isnull=True,
+        ).order_by('role', 'username')
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(username__icontains=query)
+                | Q(student_id__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(email__icontains=query)
+            )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['q'] = self.request.GET.get('q', '').strip()
+        return context
+
+
+class UnassignedTeacherListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
+    template_name = 'accounts/unassigned_teacher_list.html'
+    context_object_name = 'teachers'
+    paginate_by = 50
+
+    def get_queryset(self):
+        assigned_teacher_values = {
+            normalize_teacher_text(value)
+            for value in Club.objects.exclude(teacher='').values_list('teacher', flat=True)
+            if normalize_teacher_text(value)
+        }
+        teachers = User.objects.filter(role='teacher', is_active=True).order_by('username')
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            teachers = teachers.filter(
+                Q(username__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(email__icontains=query)
+                | Q(phone__icontains=query)
+            )
+
+        return [
+            teacher for teacher in teachers
+            if get_teacher_match_values(teacher).isdisjoint(assigned_teacher_values)
+        ]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['q'] = self.request.GET.get('q', '').strip()
+        return context
+
+
 class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     model = Club
     template_name = 'accounts/club_admin_list.html'
@@ -146,6 +226,47 @@ class ClubAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
         recalculate_club_current_members()
         messages.success(request, '社團已重新啟用。')
         return redirect('club_admin_list')
+
+
+class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
+    template_name = 'accounts/club_admin_confirm_delete.html'
+
+    def get(self, request, pk):
+        club = get_object_or_404(Club, pk=pk)
+        active_members = self.get_active_members(club)
+        return render(
+            request,
+            self.template_name,
+            {
+                'club': club,
+                'active_member_count': active_members.count(),
+                'active_members': active_members[:10],
+            },
+        )
+
+    def post(self, request, pk):
+        club = get_object_or_404(Club, pk=pk)
+
+        with transaction.atomic():
+            released_count = self.get_active_members(club).update(club=None)
+            club.teacher = ''
+            club.president = ''
+            club.is_active = False
+            club.save(update_fields=['teacher', 'president', 'is_active'])
+            recalculate_club_current_members()
+
+        messages.warning(
+            request,
+            f'社團已安全刪除：已停用社團、清空老師與社長欄位，並解除 {released_count} 位啟用成員的社團分配。',
+        )
+        return redirect('club_admin_list')
+
+    def get_active_members(self, club):
+        return User.objects.filter(
+            club=club,
+            is_active=True,
+            role__in=['student', 'president'],
+        ).order_by('role', 'username')
 
 
 class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
