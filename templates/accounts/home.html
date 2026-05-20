@@ -9,9 +9,15 @@
             <h1 class="display-5 fw-bold mb-3">社團轉社系統</h1>
             <p class="lead text-muted mb-4">線上申請、透明審核、自動化管理</p>
             <div class="d-flex flex-wrap gap-2">
-                <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-lg">申請轉社</a>
-                <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">查看我的申請</a>
-                <a href="{% url 'pending_approvals' %}" class="btn btn-outline-secondary btn-lg">查看待審核</a>
+                {% if user.is_authenticated and user.role == 'student' %}
+                    <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-lg">申請轉社</a>
+                    <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">查看我的申請</a>
+                {% endif %}
+                {% if user.is_authenticated %}
+                    {% if user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
+                        <a href="{% url 'pending_approvals' %}" class="btn btn-outline-secondary btn-lg">查看待審核</a>
+                    {% endif %}
+                {% endif %}
             </div>
         </div>
         <div class="col-lg-5">
@@ -41,30 +47,36 @@
 
 <section class="mb-4">
     <div class="row row-cols-1 row-cols-md-3 g-3">
-        <div class="col">
-            <a href="{% url 'transfer_apply' %}" class="card h-100 text-decoration-none text-body">
-                <div class="card-body">
-                    <h2 class="h5 card-title">申請轉社</h2>
-                    <p class="card-text text-muted mb-0">填寫轉社原因並選擇目標社團，送出後進入審核流程。</p>
+        {% if user.is_authenticated and user.role == 'student' %}
+            <div class="col">
+                <a href="{% url 'transfer_apply' %}" class="card h-100 text-decoration-none text-body">
+                    <div class="card-body">
+                        <h2 class="h5 card-title">申請轉社</h2>
+                        <p class="card-text text-muted mb-0">填寫轉社原因並選擇目標社團，送出後進入審核流程。</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a href="{% url 'my_requests' %}" class="card h-100 text-decoration-none text-body">
+                    <div class="card-body">
+                        <h2 class="h5 card-title">查看我的申請</h2>
+                        <p class="card-text text-muted mb-0">追蹤申請狀態、查看審核紀錄與目前處理階段。</p>
+                    </div>
+                </a>
+            </div>
+        {% endif %}
+        {% if user.is_authenticated %}
+            {% if user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
+                <div class="col">
+                    <a href="{% url 'pending_approvals' %}" class="card h-100 text-decoration-none text-body">
+                        <div class="card-body">
+                            <h2 class="h5 card-title">查看待審核</h2>
+                            <p class="card-text text-muted mb-0">社長、指導老師與訓育組可集中處理待審核申請。</p>
+                        </div>
+                    </a>
                 </div>
-            </a>
-        </div>
-        <div class="col">
-            <a href="{% url 'my_requests' %}" class="card h-100 text-decoration-none text-body">
-                <div class="card-body">
-                    <h2 class="h5 card-title">查看我的申請</h2>
-                    <p class="card-text text-muted mb-0">追蹤申請狀態、查看審核紀錄與目前處理階段。</p>
-                </div>
-            </a>
-        </div>
-        <div class="col">
-            <a href="{% url 'pending_approvals' %}" class="card h-100 text-decoration-none text-body">
-                <div class="card-body">
-                    <h2 class="h5 card-title">查看待審核</h2>
-                    <p class="card-text text-muted mb-0">社長、指導老師與訓育組可集中處理待審核申請。</p>
-                </div>
-            </a>
-        </div>
+            {% endif %}
+        {% endif %}
     </div>
 </section>
 
@@ -73,15 +85,15 @@
     <div class="d-flex flex-column flex-lg-row gap-2 align-items-lg-center text-center">
         <div class="flex-fill border rounded bg-white p-3">學生申請</div>
         <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">原社長審核</div>
+        <div class="flex-fill border rounded bg-white p-3">原社社長審核</div>
         <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">原指導老師審核</div>
+        <div class="flex-fill border rounded bg-white p-3">原社指導老師審核</div>
         <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">新社長審核</div>
+        <div class="flex-fill border rounded bg-white p-3">新社社長審核</div>
         <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">新指導老師審核</div>
+        <div class="flex-fill border rounded bg-white p-3">新社指導老師審核</div>
         <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">訓育組核准</div>
+        <div class="flex-fill border rounded bg-white p-3">訓育組核定</div>
     </div>
 </section>
 {% endblock %}

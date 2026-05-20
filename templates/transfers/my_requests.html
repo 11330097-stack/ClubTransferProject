@@ -13,7 +13,7 @@
                 <th>申請時間</th>
                 <th>原社團</th>
                 <th>目標社團</th>
-                <th>目前狀態</th>
+                <th>狀態</th>
                 <th>操作</th>
             </tr>
         </thead>
@@ -35,13 +35,9 @@
                     {% endif %}
                 </td>
                 <td>
-                    <a href="{% url 'request_detail' req.pk %}" class="btn btn-sm btn-outline-primary">
-                        查看詳情
-                    </a>
+                    <a href="{% url 'request_detail' req.pk %}" class="btn btn-sm btn-outline-primary">查看詳細</a>
                     {% if req.status == 'returned' %}
-                        <a href="{% url 'reselect_club' req.pk %}" class="btn btn-sm btn-warning">
-                            重新選擇
-                        </a>
+                        <a href="{% url 'reselect_club' req.pk %}" class="btn btn-sm btn-warning">重新選擇</a>
                     {% endif %}
                 </td>
             </tr>
@@ -52,7 +48,9 @@
 {% else %}
 <div class="alert alert-info">
     <p>您目前沒有任何轉社申請紀錄。</p>
-    <a href="{% url 'transfer_apply' %}" class="btn btn-primary">立即申請轉社</a>
+    {% if user.role == 'student' %}
+        <a href="{% url 'transfer_apply' %}" class="btn btn-primary">立即申請轉社</a>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}

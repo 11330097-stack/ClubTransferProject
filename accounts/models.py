@@ -1,8 +1,8 @@
-from django.contrib.auth.models import AbstractUser
+import django.contrib.auth.models
 from django.db import models
 
 
-class User(AbstractUser):
+class User(django.contrib.auth.models.AbstractUser):
     """
     自定義使用者模型
     身分組：學生、社長、指導老師、訓育組（管理員）

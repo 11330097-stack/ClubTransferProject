@@ -58,7 +58,7 @@
                         <a class="nav-link" href="{% url 'club_list' %}">社團列表</a>
                     </li>
                     {% if user.is_authenticated %}
-                        {% if user.role == 'student' or user.role == 'president' %}
+                        {% if user.role == 'student' %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'transfer_apply' %}">申請轉社</a>
                             </li>
@@ -128,13 +128,13 @@
                 </div>
             {% endfor %}
         {% endif %}
-        
+
         {% block content %}{% endblock %}
     </main>
 
     <footer class="bg-light py-3 mt-5">
         <div class="container text-center text-muted">
-            <small>社團轉社電子化系統 &copy; 2026</small>
+            <small>社團轉社系統 &copy; 2026</small>
         </div>
     </footer>
 

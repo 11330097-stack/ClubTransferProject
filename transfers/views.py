@@ -32,9 +32,16 @@ class TransferApplicantRequiredMixin(UserPassesTestMixin):
         return self.request.user.role == 'student'
 
     def handle_no_permission(self):
-        if self.request.user.is_authenticated and self.request.user.role == 'president':
-            messages.error(self.request, '社長目前不可申請轉社，請先完成社長交接')
-            return redirect('home')
+        if self.request.user.is_authenticated:
+            role_messages = {
+                'president': '社長目前不可申請轉社，請先完成社長交接',
+                'teacher': '指導老師不可申請轉社',
+                'admin': '訓育組不可申請轉社',
+            }
+            message = role_messages.get(self.request.user.role)
+            if message:
+                messages.error(self.request, message)
+                return redirect('home')
         return super().handle_no_permission()
 
 
