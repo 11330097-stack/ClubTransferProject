@@ -21,7 +21,7 @@ class CustomUserAdmin(UserAdmin):
         ('社團資訊', {
             'fields': ('role', 'student_id', 'club', 'phone'),
         }),
-    )
+    ) # pyright: ignore[reportAssignmentType, reportOperatorIssue]
 
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('社團資訊', {
