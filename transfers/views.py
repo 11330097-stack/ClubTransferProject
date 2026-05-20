@@ -172,6 +172,16 @@ class RequestDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context['logs'] = self.object.approval_logs.all()
         context['current_approver'] = self.object.get_current_approver()
+        user = self.request.user
+        if user.is_superuser or getattr(user, 'role', None) == 'admin':
+            context['return_url_name'] = 'all_requests'
+            context['return_label'] = '返回全校申請'
+        elif getattr(user, 'role', None) in ['president', 'teacher']:
+            context['return_url_name'] = 'pending_approvals'
+            context['return_label'] = '返回待審核申請'
+        else:
+            context['return_url_name'] = 'my_requests'
+            context['return_label'] = '返回我的申請'
         return context
 
 

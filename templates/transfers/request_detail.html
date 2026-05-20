@@ -126,7 +126,7 @@
                 {% endif %}
             </div>
             <div class="card-footer">
-                <a href="{% url 'my_requests' %}" class="btn btn-secondary">返回列表</a>
+                <a href="{% url return_url_name %}" class="btn btn-secondary">{{ return_label }}</a>
                 {% if request.status == 'returned' %}
                     <a href="{% url 'reselect_club' request.pk %}" class="btn btn-warning">重新選擇社團</a>
                 {% endif %}
