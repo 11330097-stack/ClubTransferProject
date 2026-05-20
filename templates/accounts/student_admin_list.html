@@ -55,6 +55,12 @@
                     </td>
                     <td>
                         <a href="{% url 'student_admin_edit' student.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
+                        {% if student.is_active and student.role == 'student' %}
+                            <form method="post" action="{% url 'student_admin_promote_president' student.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-success">晉升為社長</button>
+                            </form>
+                        {% endif %}
                         {% if student.is_active %}
                             <a href="{% url 'student_admin_deactivate' student.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
                         {% else %}

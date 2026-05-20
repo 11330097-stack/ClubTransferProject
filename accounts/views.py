@@ -8,6 +8,7 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView, View
 
 from clubs.models import Club
+from transfers.models import get_user_from_display_text
 from transfers.models import ApprovalLog, TransferRequest
 from .forms import ClubAdminForm, StudentAccountForm, StudentCsvImportForm
 from .models import User
@@ -344,6 +345,47 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
             Q(transfer_request__student=student) | Q(approver=student)
         ).exists()
         return has_transfer_requests or has_approval_logs
+
+
+class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, pk):
+        student = get_object_or_404(User.objects.select_related('club'), pk=pk)
+
+        if student.role == 'president':
+            messages.warning(request, '此學生已經是社長，無法重複晉升。')
+            return redirect('student_admin_list')
+
+        if student.role != 'student':
+            messages.error(request, '只有一般學生可以晉升為社長。')
+            return redirect('student_admin_list')
+
+        if not student.club_id:
+            messages.error(request, '此學生目前沒有社團，無法晉升為社長。')
+            return redirect('student_admin_list')
+
+        with transaction.atomic():
+            student = User.objects.select_for_update().select_related('club').get(pk=student.pk)
+            club = Club.objects.select_for_update().get(pk=student.club_id)
+            previous_president = get_user_from_display_text(club.president)
+
+            if previous_president and previous_president.pk != student.pk:
+                previous_president = User.objects.select_for_update().get(pk=previous_president.pk)
+                previous_president.role = 'student'
+                previous_president.club = club
+                previous_president.save(update_fields=['role', 'club'])
+
+            student.role = 'president'
+            student.club = club
+            student.save(update_fields=['role', 'club'])
+
+            display_name = student.get_full_name() or student.first_name or student.username
+            club.president = f'{display_name} ({student.username})'
+            club.save(update_fields=['president'])
+
+            recalculate_club_current_members()
+
+        messages.success(request, f'{display_name} 已晉升為 {club.name} 社長。')
+        return redirect('student_admin_list')
 
 
 class StudentCsvImportView(LoginRequiredMixin, AdminRequiredMixin, FormView):

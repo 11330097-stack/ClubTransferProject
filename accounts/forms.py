@@ -75,7 +75,6 @@ class ClubAdminForm(forms.ModelForm):
             'teacher',
             'president',
             'location',
-            'category',
             'description',
             'max_members',
             'is_active',

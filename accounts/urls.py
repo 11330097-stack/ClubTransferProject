@@ -24,5 +24,6 @@ urlpatterns = [
     path('admin-panel/students/<int:pk>/deactivate/', views.StudentAdminDeactivateView.as_view(), name='student_admin_deactivate'),
     path('admin-panel/students/<int:pk>/reactivate/', views.StudentAdminReactivateView.as_view(), name='student_admin_reactivate'),
     path('admin-panel/students/<int:pk>/delete/', views.StudentAdminDeleteView.as_view(), name='student_admin_delete'),
+    path('admin-panel/students/<int:pk>/promote-president/', views.StudentAdminPromotePresidentView.as_view(), name='student_admin_promote_president'),
     path('admin-panel/students/import/', views.StudentCsvImportView.as_view(), name='student_admin_import'),
 ]
