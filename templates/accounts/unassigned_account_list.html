@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}未分配學生{% endblock %}
+{% block title %}未分配帳號{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">未分配學生</h1>
+<h1 class="h3 mb-3">未分配帳號</h1>
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-sm-8 col-md-6">
@@ -14,7 +14,7 @@
     </div>
     {% if q %}
         <div class="col-auto">
-            <a href="{% url 'unassigned_student_list' %}" class="btn btn-outline-secondary">清除</a>
+            <a href="{% url 'unassigned_account_list' %}" class="btn btn-outline-secondary">清除</a>
         </div>
     {% endif %}
 </form>
@@ -26,22 +26,32 @@
                 <th>Username</th>
                 <th>學號</th>
                 <th>姓名</th>
-                <th>角色</th>
                 <th>Email</th>
+                <th>身分</th>
             </tr>
         </thead>
         <tbody>
-            {% for student in students %}
+            {% for account in accounts %}
                 <tr>
-                    <td>{{ student.username }}</td>
-                    <td>{{ student.student_id|default:"-" }}</td>
-                    <td>{{ student.first_name|default:"-" }}</td>
-                    <td>{{ student.get_role_display }}</td>
-                    <td>{{ student.email|default:"-" }}</td>
+                    <td>{{ account.username }}</td>
+                    <td>{{ account.student_id|default:"-" }}</td>
+                    <td>{{ account.first_name|default:"-" }}</td>
+                    <td>{{ account.email|default:"-" }}</td>
+                    <td>
+                        {% if account.role == 'student' %}
+                            <span class="badge bg-primary">學生</span>
+                        {% elif account.role == 'president' %}
+                            <span class="badge bg-success">社長</span>
+                        {% elif account.role == 'teacher' %}
+                            <span class="badge bg-info text-dark">指導老師</span>
+                        {% else %}
+                            {{ account.get_role_display }}
+                        {% endif %}
+                    </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="5" class="text-center text-muted">沒有未分配社團的學生或社長。</td>
+                    <td colspan="5" class="text-center text-muted">沒有未分配帳號。</td>
                 </tr>
             {% endfor %}
         </tbody>

@@ -73,58 +73,42 @@ def get_teacher_match_values(teacher):
     return {value for value in values if value}
 
 
-class UnassignedStudentListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
-    model = User
-    template_name = 'accounts/unassigned_student_list.html'
-    context_object_name = 'students'
+class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
+    template_name = 'accounts/unassigned_account_list.html'
+    context_object_name = 'accounts'
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = User.objects.filter(
+        query = self.request.GET.get('q', '').strip()
+
+        student_accounts = User.objects.filter(
             role__in=['student', 'president'],
             is_active=True,
             club__isnull=True,
-        ).order_by('role', 'username')
-        query = self.request.GET.get('q', '').strip()
+        )
+        teacher_accounts = User.objects.filter(role='teacher', is_active=True)
+
         if query:
-            queryset = queryset.filter(
+            search_filter = (
                 Q(username__icontains=query)
                 | Q(student_id__icontains=query)
                 | Q(first_name__icontains=query)
                 | Q(email__icontains=query)
             )
-        return queryset
+            student_accounts = student_accounts.filter(search_filter)
+            teacher_accounts = teacher_accounts.filter(search_filter)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['q'] = self.request.GET.get('q', '').strip()
-        return context
-
-
-class UnassignedTeacherListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
-    template_name = 'accounts/unassigned_teacher_list.html'
-    context_object_name = 'teachers'
-    paginate_by = 50
-
-    def get_queryset(self):
         assigned_teacher_values = {
             normalize_teacher_text(value)
             for value in Club.objects.exclude(teacher='').values_list('teacher', flat=True)
             if normalize_teacher_text(value)
         }
-        teachers = User.objects.filter(role='teacher', is_active=True).order_by('username')
-        query = self.request.GET.get('q', '').strip()
-        if query:
-            teachers = teachers.filter(
-                Q(username__icontains=query)
-                | Q(first_name__icontains=query)
-                | Q(email__icontains=query)
-            )
 
-        return [
-            teacher for teacher in teachers
+        accounts = list(student_accounts) + [
+            teacher for teacher in teacher_accounts
             if get_teacher_match_values(teacher).isdisjoint(assigned_teacher_values)
         ]
+        return sorted(accounts, key=lambda account: (account.role, account.username))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
