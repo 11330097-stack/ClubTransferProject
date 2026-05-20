@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}社團資料{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">社團資料</h1>
+
+<form method="post" class="card card-body">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    {% for field in form %}
+        <div class="mb-3">
+            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}
+                <div class="form-text">{{ field.help_text }}</div>
+            {% endif %}
+            {% for error in field.errors %}
+                <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+    <div class="alert alert-info">
+        current_members 由系統依啟用中的學生與社長重新計算，不能手動修改。
+    </div>
+
+    <div>
+        <button type="submit" class="btn btn-primary">儲存</button>
+        <a href="{% url 'club_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}

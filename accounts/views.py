@@ -9,7 +9,7 @@ from django.views.generic import CreateView, FormView, ListView, TemplateView, U
 
 from clubs.models import Club
 from transfers.models import ApprovalLog, TransferRequest
-from .forms import StudentAccountForm, StudentCsvImportForm
+from .forms import ClubAdminForm, StudentAccountForm, StudentCsvImportForm
 from .models import User
 from .services import (
     SAMPLE_STUDENT_IMPORT_CSV,
@@ -50,6 +50,102 @@ class HomeView(TemplateView):
 
 class ProfileView(LoginRequiredMixin, TemplateView):
     template_name = 'accounts/profile.html'
+
+
+class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
+    model = Club
+    template_name = 'accounts/club_admin_list.html'
+    context_object_name = 'clubs'
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = Club.objects.all().order_by('code', 'name')
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(code__icontains=query)
+                | Q(name__icontains=query)
+                | Q(teacher__icontains=query)
+                | Q(president__icontains=query)
+            )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['q'] = self.request.GET.get('q', '').strip()
+        return context
+
+
+class ClubAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
+    model = Club
+    form_class = ClubAdminForm
+    template_name = 'accounts/club_admin_form.html'
+    success_url = reverse_lazy('club_admin_list')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        recalculate_club_current_members()
+        messages.success(self.request, '社團已新增。')
+        return response
+
+
+class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
+    model = Club
+    form_class = ClubAdminForm
+    template_name = 'accounts/club_admin_form.html'
+    success_url = reverse_lazy('club_admin_list')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        recalculate_club_current_members()
+        messages.success(self.request, '社團資料已更新。')
+        return response
+
+
+class ClubAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    template_name = 'accounts/club_admin_confirm_deactivate.html'
+
+    def get(self, request, pk):
+        club = get_object_or_404(Club, pk=pk)
+        active_member_count = self.get_active_member_count(club)
+        return render(
+            request,
+            self.template_name,
+            {'club': club, 'active_member_count': active_member_count},
+        )
+
+    def post(self, request, pk):
+        club = get_object_or_404(Club, pk=pk)
+        active_member_count = self.get_active_member_count(club)
+        if active_member_count > 0:
+            messages.error(
+                request,
+                '此社團仍有啟用中的學生或社長，請先移出或停用相關帳號後再停用社團。',
+            )
+            return redirect('club_admin_list')
+
+        club.is_active = False
+        club.save(update_fields=['is_active'])
+        recalculate_club_current_members()
+        messages.success(request, '社團已停用。')
+        return redirect('club_admin_list')
+
+    def get_active_member_count(self, club):
+        return User.objects.filter(
+            club=club,
+            is_active=True,
+            role__in=['student', 'president'],
+        ).count()
+
+
+class ClubAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, pk):
+        club = get_object_or_404(Club, pk=pk)
+        club.is_active = True
+        club.save(update_fields=['is_active'])
+        recalculate_club_current_members()
+        messages.success(request, '社團已重新啟用。')
+        return redirect('club_admin_list')
 
 
 class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):

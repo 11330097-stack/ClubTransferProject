@@ -1,5 +1,6 @@
 from django import forms
 
+from clubs.models import Club
 from .models import User
 
 
@@ -64,6 +65,22 @@ class StudentAccountForm(forms.ModelForm):
             user.save()
             self.save_m2m()
         return user
+
+
+class ClubAdminForm(forms.ModelForm):
+    class Meta:
+        model = Club
+        fields = [
+            'code',
+            'name',
+            'teacher',
+            'president',
+            'location',
+            'category',
+            'description',
+            'max_members',
+            'is_active',
+        ]
 
 
 class StudentCsvImportForm(forms.Form):

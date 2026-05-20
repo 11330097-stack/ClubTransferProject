@@ -78,6 +78,9 @@
                         {% endif %}
                         {% if user.is_superuser or user.role == 'admin' %}
                             <li class="nav-item">
+                                <a class="nav-link" href="{% url 'club_admin_list' %}">社團管理</a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link" href="{% url 'student_admin_list' %}">學生管理</a>
                             </li>
                         {% endif %}
