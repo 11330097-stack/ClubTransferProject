@@ -7,6 +7,7 @@ urlpatterns = [
     path('my-requests/', views.MyRequestsView.as_view(), name='my_requests'),
     path('request/<int:pk>/', views.RequestDetailView.as_view(), name='request_detail'),
     path('request/<int:pk>/reselect/', views.ReselectClubView.as_view(), name='reselect_club'),
+    path('request/<int:pk>/delete/', views.DeleteRequestRecordView.as_view(), name='delete_request_record'),
     
     # 審核功能
     path('pending/', views.PendingApprovalsView.as_view(), name='pending_approvals'),

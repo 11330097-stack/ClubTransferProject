@@ -54,7 +54,8 @@ class ApproverRequiredMixin(UserPassesTestMixin):
 class AdminRequiredMixin(UserPassesTestMixin):
     """檢查是否為訓育組管理員"""
     def test_func(self):
-        return self.request.user.is_admin()
+        user = self.request.user
+        return user.is_superuser or getattr(user, 'role', None) == 'admin'
 
 
 class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, CreateView):
@@ -398,3 +399,33 @@ class AllRequestsView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         ).count()
         
         return context
+
+
+class DeleteRequestRecordView(LoginRequiredMixin, AdminRequiredMixin, View):
+    template_name = 'transfers/request_confirm_delete.html'
+
+    def get(self, request, pk):
+        transfer_request = get_object_or_404(
+            TransferRequest.objects.select_related('student', 'original_club', 'target_club'),
+            pk=pk,
+        )
+        approval_log_count = transfer_request.approval_logs.count()
+        return render(
+            request,
+            self.template_name,
+            {
+                'transfer_request': transfer_request,
+                'approval_log_count': approval_log_count,
+            },
+        )
+
+    def post(self, request, pk):
+        transfer_request = get_object_or_404(TransferRequest, pk=pk)
+        request_id = transfer_request.pk
+
+        with transaction.atomic():
+            ApprovalLog.objects.filter(transfer_request=transfer_request).delete()
+            transfer_request.delete()
+
+        messages.success(request, f'申請紀錄 #{request_id} 已刪除。')
+        return redirect('all_requests')

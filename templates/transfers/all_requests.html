@@ -3,14 +3,14 @@
 {% block title %}全校申請管理 - 社團轉社系統{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">全校轉社申請總覽</h2>
+<h2 class="mb-4">全校轉社申請管理</h2>
 
 {% if requests %}
 <div class="table-responsive">
-    <table class="table table-hover">
+    <table class="table table-hover align-middle">
         <thead class="table-light">
             <tr>
-                <th>申請單號</th>
+                <th>編號</th>
                 <th>申請時間</th>
                 <th>申請人</th>
                 <th>原社團</th>
@@ -43,8 +43,9 @@
                 <td>
                     <a href="{% url 'request_detail' req.pk %}" class="btn btn-sm btn-outline-primary">查看</a>
                     {% if req.status == 'admin_pending' %}
-                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approveModal{{ req.id }}">核定</button>
+                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approveModal{{ req.id }}">核准</button>
                     {% endif %}
+                    <a href="{% url 'delete_request_record' req.pk %}" class="btn btn-sm btn-outline-danger">刪除紀錄</a>
                 </td>
             </tr>
             {% endfor %}
@@ -58,24 +59,24 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">最終核定轉社申請</h5>
+                <h5 class="modal-title">核准轉社申請</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <p><strong>申請人：</strong>{{ req.student.get_full_name|default:req.student.username }}</p>
-                <p><strong>轉出：</strong>{{ req.original_club.name }}</p>
-                <p><strong>轉入：</strong>{{ req.target_club.name }}</p>
+                <p><strong>原社團：</strong>{{ req.original_club.name }}</p>
+                <p><strong>目標社團：</strong>{{ req.target_club.name }}</p>
                 <form id="approveForm{{ req.id }}" method="post" action="{% url 'approve_request' req.pk %}">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label class="form-label">核定意見（選填）</label>
+                        <label class="form-label">核准備註，可留空</label>
                         <textarea name="comment" class="form-control" rows="3"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="submit" form="approveForm{{ req.id }}" class="btn btn-success">確認核定</button>
+                <button type="submit" form="approveForm{{ req.id }}" class="btn btn-success">確認核准</button>
             </div>
         </div>
     </div>
@@ -83,7 +84,6 @@
 {% endif %}
 {% endfor %}
 
-<!-- 統計摘要 -->
 <div class="row mt-4">
     <div class="col-md-3">
         <div class="card text-center">
