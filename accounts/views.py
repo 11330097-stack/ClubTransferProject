@@ -182,52 +182,6 @@ class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
         return response
 
 
-class ClubAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
-    template_name = 'accounts/club_admin_confirm_deactivate.html'
-
-    def get(self, request, pk):
-        club = get_object_or_404(Club, pk=pk)
-        active_member_count = self.get_active_member_count(club)
-        return render(
-            request,
-            self.template_name,
-            {'club': club, 'active_member_count': active_member_count},
-        )
-
-    def post(self, request, pk):
-        club = get_object_or_404(Club, pk=pk)
-        active_member_count = self.get_active_member_count(club)
-        if active_member_count > 0:
-            messages.error(
-                request,
-                '此社團仍有啟用中的學生或社長，請先移出或停用相關帳號後再停用社團。',
-            )
-            return redirect('club_admin_list')
-
-        club.is_active = False
-        club.save(update_fields=['is_active'])
-        recalculate_club_current_members()
-        messages.success(request, '社團已停用。')
-        return redirect('club_admin_list')
-
-    def get_active_member_count(self, club):
-        return User.objects.filter(
-            club=club,
-            is_active=True,
-            role__in=['student', 'president'],
-        ).count()
-
-
-class ClubAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
-    def post(self, request, pk):
-        club = get_object_or_404(Club, pk=pk)
-        club.is_active = True
-        club.save(update_fields=['is_active'])
-        recalculate_club_current_members()
-        messages.success(request, '社團已重新啟用。')
-        return redirect('club_admin_list')
-
-
 class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
     template_name = 'accounts/club_admin_confirm_delete.html'
 

@@ -54,14 +54,6 @@
                     </td>
                     <td>
                         <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
-                        {% if club.is_active %}
-                            <a href="{% url 'club_admin_deactivate' club.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
-                        {% else %}
-                            <form method="post" action="{% url 'club_admin_reactivate' club.pk %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
-                            </form>
-                        {% endif %}
                         <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">安全刪除</a>
                     </td>
                 </tr>
