@@ -32,7 +32,7 @@
                 <th>社長</th>
                 <th>人數</th>
                 <th>狀態</th>
-                <th>操作</th>
+                <th>操作快捷列</th>
             </tr>
         </thead>
         <tbody>
@@ -51,8 +51,16 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
-                        <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">安全刪除</a>
+                        <div class="d-flex flex-wrap gap-1">
+                            <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
+                            {% if not club.is_active %}
+                                <form method="post" action="{% url 'club_admin_reactivate' club.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
+                                </form>
+                            {% endif %}
+                            <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">安全刪除</a>
+                        </div>
                     </td>
                 </tr>
             {% empty %}

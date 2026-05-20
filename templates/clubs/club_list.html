@@ -17,10 +17,10 @@
             <div class="card-body">
                 <h2 class="h5 card-title">{{ info.club.name }}</h2>
                 <p class="card-text text-muted mb-1">
-                    <small>指導老師：{{ info.club.teacher|default:"尚未設定" }}</small>
+                    <small>指導老師：{{ info.teacher_name|default:"尚未設定" }}</small>
                 </p>
                 <p class="card-text text-muted">
-                    <small>社長：{{ info.club.president|default:"尚未設定" }}</small>
+                    <small>社長：{{ info.president_name|default:"尚未設定" }}</small>
                 </p>
 
                 <div class="row text-center g-2">

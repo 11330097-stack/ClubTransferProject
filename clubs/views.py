@@ -1,6 +1,12 @@
+import re
+
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from .models import Club
+
+
+def display_name_without_username(value):
+    return re.sub(r'\s*\([^()]+\)\s*$', '', value or '').strip()
 
 
 class ClubListView(LoginRequiredMixin, ListView):
@@ -21,6 +27,8 @@ class ClubListView(LoginRequiredMixin, ListView):
         for club in context['clubs']:
             club_info.append({
                 'club': club,
+                'teacher_name': display_name_without_username(club.teacher),
+                'president_name': display_name_without_username(club.president),
                 'remaining_slots': club.get_remaining_slots(),
             })
 

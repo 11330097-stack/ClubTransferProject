@@ -207,6 +207,16 @@ class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         ).order_by('role', 'username')
 
 
+class ClubAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, pk):
+        club = get_object_or_404(Club, pk=pk)
+        club.is_active = True
+        club.save(update_fields=['is_active'])
+        recalculate_club_current_members()
+        messages.success(request, '社團已重新啟用。')
+        return redirect('club_admin_list')
+
+
 class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     model = User
     template_name = 'accounts/student_admin_list.html'
