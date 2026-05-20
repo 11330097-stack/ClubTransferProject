@@ -12,15 +12,14 @@ REQUIRED_STUDENT_IMPORT_FIELDS = [
     'student_id',
     'name',
     'email',
-    'phone',
     'club_code',
     'password',
 ]
 
 SAMPLE_STUDENT_IMPORT_CSV = (
-    'username,student_id,name,email,phone,club_code,password\n'
-    'student001,2026001,Student One,student001@example.com,0912345678,D001,student123\n'
-    'student002,2026002,Student Two,student002@example.com,0922333444,D002,student123'
+    'username,student_id,name,email,club_code,password\n'
+    'student001,2026001,Student One,student001@example.com,D001,student123\n'
+    'student002,2026002,Student Two,student002@example.com,D002,student123'
 )
 
 
@@ -89,7 +88,6 @@ def import_students_from_csv(csv_file):
             user.student_id = cleaned['student_id']
             user.first_name = cleaned['name']
             user.email = cleaned['email']
-            user.phone = cleaned['phone']
             user.club = club
             user.role = 'student'
             user.is_active = True

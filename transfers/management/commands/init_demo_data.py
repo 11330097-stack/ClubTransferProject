@@ -155,7 +155,6 @@ class Command(BaseCommand):
                     "email": f"{username}@school.edu.tw",
                     "role": role,
                     "student_id": f"2026{i:03d}",
-                    "phone": f"09{i:08d}"[-10:],
                     "club": assigned_club,
                     "is_active": True,
                 },
@@ -165,7 +164,6 @@ class Command(BaseCommand):
             account.email = f"{username}@school.edu.tw"
             account.role = role
             account.student_id = f"2026{i:03d}"
-            account.phone = f"09{i:08d}"[-10:]
             account.club = assigned_club
             account.is_active = True
             account.password = password_hash
@@ -196,7 +194,6 @@ class Command(BaseCommand):
                     "email": f"{username}@school.edu.tw",
                     "role": "teacher",
                     "student_id": "",
-                    "phone": f"02{i:08d}"[-10:],
                     "club": None,
                     "is_active": True,
                 },
@@ -206,7 +203,6 @@ class Command(BaseCommand):
             teacher.email = f"{username}@school.edu.tw"
             teacher.role = "teacher"
             teacher.student_id = ""
-            teacher.phone = f"02{i:08d}"[-10:]
             teacher.club = None
             teacher.is_active = True
             teacher.password = password_hash

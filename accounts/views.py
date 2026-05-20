@@ -118,7 +118,6 @@ class UnassignedTeacherListView(LoginRequiredMixin, AdminRequiredMixin, ListView
                 Q(username__icontains=query)
                 | Q(first_name__icontains=query)
                 | Q(email__icontains=query)
-                | Q(phone__icontains=query)
             )
 
         return [

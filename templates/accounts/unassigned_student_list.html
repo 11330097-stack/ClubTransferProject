@@ -28,7 +28,6 @@
                 <th>姓名</th>
                 <th>角色</th>
                 <th>Email</th>
-                <th>Phone</th>
             </tr>
         </thead>
         <tbody>
@@ -39,11 +38,10 @@
                     <td>{{ student.first_name|default:"-" }}</td>
                     <td>{{ student.get_role_display }}</td>
                     <td>{{ student.email|default:"-" }}</td>
-                    <td>{{ student.phone|default:"-" }}</td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted">沒有未分配社團的學生或社長。</td>
+                    <td colspan="5" class="text-center text-muted">沒有未分配社團的學生或社長。</td>
                 </tr>
             {% endfor %}
         </tbody>

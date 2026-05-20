@@ -33,7 +33,6 @@ class User(AbstractUser):
         verbose_name='所屬社團',
         related_name='members'
     )
-    phone = models.CharField(max_length=20, blank=True, verbose_name='電話')
     
     class Meta:
         verbose_name = '使用者'

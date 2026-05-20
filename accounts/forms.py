@@ -18,7 +18,6 @@ class StudentAccountForm(forms.ModelForm):
             'student_id',
             'first_name',
             'email',
-            'phone',
             'role',
             'club',
             'is_active',
