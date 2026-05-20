@@ -30,7 +30,6 @@
                 <th>社團名稱</th>
                 <th>老師</th>
                 <th>社長</th>
-                <th>類別</th>
                 <th>人數</th>
                 <th>狀態</th>
                 <th>操作</th>
@@ -43,7 +42,6 @@
                     <td>{{ club.name }}</td>
                     <td>{{ club.teacher|default:"-" }}</td>
                     <td>{{ club.president|default:"-" }}</td>
-                    <td>{{ club.get_category_display|default:"-" }}</td>
                     <td>{{ club.current_members }} / {{ club.max_members }}</td>
                     <td>
                         {% if club.is_active %}
@@ -54,12 +52,12 @@
                     </td>
                     <td>
                         <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
-                        <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">刪除</a>
+                        <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">安全刪除</a>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted">沒有符合條件的社團。</td>
+                    <td colspan="7" class="text-center text-muted">沒有符合條件的社團。</td>
                 </tr>
             {% endfor %}
         </tbody>
