@@ -20,6 +20,10 @@ REVIEWABLE_STATUSES = [
 ]
 
 
+def is_training_admin(user):
+    return user.is_superuser or getattr(user, 'role', None) == 'admin'
+
+
 class StudentRequiredMixin(UserPassesTestMixin):
     """檢查是否為學生"""
     def test_func(self):
@@ -48,14 +52,14 @@ class TransferApplicantRequiredMixin(UserPassesTestMixin):
 class ApproverRequiredMixin(UserPassesTestMixin):
     """檢查是否為審核者（社長、老師、管理員）"""
     def test_func(self):
-        return self.request.user.role in ['president', 'teacher', 'admin']
+        user = self.request.user
+        return is_training_admin(user) or getattr(user, 'role', None) in ['president', 'teacher']
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
     """檢查是否為訓育組管理員"""
     def test_func(self):
-        user = self.request.user
-        return user.is_superuser or getattr(user, 'role', None) == 'admin'
+        return is_training_admin(self.request.user)
 
 
 class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, CreateView):
@@ -160,7 +164,7 @@ class RequestDetailView(LoginRequiredMixin, DetailView):
         if transfer_request.student == user:
             return transfer_request
 
-        if user.is_admin():
+        if is_training_admin(user):
             return transfer_request
 
         if transfer_request.can_be_approved_by(user):
@@ -173,7 +177,7 @@ class RequestDetailView(LoginRequiredMixin, DetailView):
         context['logs'] = self.object.approval_logs.all()
         context['current_approver'] = self.object.get_current_approver()
         user = self.request.user
-        if user.is_superuser or getattr(user, 'role', None) == 'admin':
+        if is_training_admin(user):
             context['return_url_name'] = 'all_requests'
             context['return_label'] = '返回全校申請'
         elif getattr(user, 'role', None) in ['president', 'teacher']:
@@ -223,6 +227,7 @@ class ReselectClubView(LoginRequiredMixin, StudentRequiredMixin, UpdateView):
         # 重新進入新社長審核階段
         self.object.status = 'new_president_pending'
         self.object.save()
+        self.object.send_notification()
         
         messages.success(self.request, '已重新選擇目標社團，等待新社長審核')
         return redirect('my_requests')
@@ -239,7 +244,7 @@ class PendingApprovalsView(LoginRequiredMixin, ApproverRequiredMixin, ListView):
     def get_queryset(self):
         user = self.request.user
         
-        if user.is_admin():
+        if is_training_admin(user):
             # 管理員查看所有待核定申請
             return TransferRequest.objects.filter(status='admin_pending')
         
@@ -288,7 +293,13 @@ class ApproveRequestView(LoginRequiredMixin, View):
                 messages.error(request, '此申請目前不能審核，可能已核准、拒絕或退回。')
                 return redirect('pending_approvals')
 
-            if not transfer_request.can_be_approved_by(request.user):
+            if (
+                transfer_request.status == 'admin_pending'
+                and not is_training_admin(request.user)
+            ) or (
+                transfer_request.status != 'admin_pending'
+                and not transfer_request.can_be_approved_by(request.user)
+            ):
                 messages.error(request, '您不是此申請目前階段的審核人。')
                 return redirect('home')
 
@@ -357,7 +368,13 @@ class RejectRequestView(LoginRequiredMixin, View):
                 messages.error(request, '此申請目前不能審核，可能已核准、拒絕或退回。')
                 return redirect('pending_approvals')
 
-            if not transfer_request.can_be_approved_by(request.user):
+            if (
+                transfer_request.status == 'admin_pending'
+                and not is_training_admin(request.user)
+            ) or (
+                transfer_request.status != 'admin_pending'
+                and not transfer_request.can_be_approved_by(request.user)
+            ):
                 messages.error(request, '您不是此申請目前階段的審核人。')
                 return redirect('home')
 

@@ -51,6 +51,7 @@
                 <th>姓名</th>
                 <th>Email</th>
                 <th>社團</th>
+                <th>角色</th>
                 <th>狀態</th>
                 <th>操作</th>
             </tr>
@@ -59,7 +60,9 @@
             {% for student in students %}
                 <tr>
                     <td>
-                        <input type="checkbox" class="form-check-input student-checkbox" name="student_ids" value="{{ student.pk }}" form="bulk-student-form" aria-label="選取 {{ student.username }}">
+                        {% if student.role == 'student' %}
+                            <input type="checkbox" class="form-check-input student-checkbox" name="student_ids" value="{{ student.pk }}" form="bulk-student-form" aria-label="選取 {{ student.username }}">
+                        {% endif %}
                     </td>
                     <td>{{ student.username }}</td>
                     <td>{{ student.student_id }}</td>
@@ -68,6 +71,7 @@
                     <td>{{ student.first_name }}</td>
                     <td>{{ student.email }}</td>
                     <td>{{ student.club|default:"-" }}</td>
+                    <td>{{ student.get_role_display }}</td>
                     <td>
                         {% if student.is_active %}
                             <span class="badge bg-success">啟用</span>
@@ -76,27 +80,31 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="{% url 'student_admin_edit' student.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
+                        <a href="{% url 'student_admin_edit' student.pk %}" class="btn btn-sm btn-outline-primary">
+                            {% if student.role == 'president' %}降級為一般學生{% else %}編輯{% endif %}
+                        </a>
                         {% if student.is_active and student.role == 'student' %}
                             <form method="post" action="{% url 'student_admin_promote_president' student.pk %}" class="d-inline">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-outline-success">晉升為社長</button>
                             </form>
                         {% endif %}
-                        {% if student.is_active %}
-                            <a href="{% url 'student_admin_deactivate' student.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
-                        {% else %}
-                            <form method="post" action="{% url 'student_admin_reactivate' student.pk %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
-                            </form>
+                        {% if student.role == 'student' %}
+                            {% if student.is_active %}
+                                <a href="{% url 'student_admin_deactivate' student.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
+                            {% else %}
+                                <form method="post" action="{% url 'student_admin_reactivate' student.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
+                                </form>
+                            {% endif %}
+                            <a href="{% url 'student_admin_delete' student.pk %}" class="btn btn-sm btn-danger">刪除</a>
                         {% endif %}
-                        <a href="{% url 'student_admin_delete' student.pk %}" class="btn btn-sm btn-danger">刪除</a>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="10" class="text-center text-muted">沒有符合條件的學生。</td>
+                    <td colspan="11" class="text-center text-muted">沒有符合條件的學生。</td>
                 </tr>
             {% endfor %}
         </tbody>

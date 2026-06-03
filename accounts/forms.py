@@ -32,6 +32,8 @@ class StudentAccountForm(forms.ModelForm):
         self.original_password = self.instance.password
         self.fields['role'].choices = [('student', 'student')]
         self.fields['role'].initial = 'student'
+        if self.instance.pk and self.instance.role == 'president':
+            self.fields['role'].help_text = '儲存後會將此社長降級為一般學生。'
         self.fields['password'].required = self.is_create
 
     def clean_username(self):

@@ -217,7 +217,9 @@ class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = User.objects.filter(role='student').select_related('club').order_by('username')
+        queryset = User.objects.filter(
+            role__in=['student', 'president'],
+        ).select_related('club').order_by('username')
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(
@@ -258,7 +260,7 @@ class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView)
     success_url = reverse_lazy('student_admin_list')
 
     def get_queryset(self):
-        return User.objects.filter(role='student')
+        return User.objects.filter(role__in=['student', 'president'])
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -266,9 +268,22 @@ class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView)
         return kwargs
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        recalculate_club_current_members()
-        messages.success(self.request, '學生資料已更新。')
+        original_user = User.objects.only('role', 'username').get(pk=self.object.pk)
+        was_president = original_user.role == 'president'
+        username_marker = f'({original_user.username})'
+
+        with transaction.atomic():
+            response = super().form_valid(form)
+            if was_president:
+                Club.objects.filter(
+                    president__icontains=username_marker,
+                ).update(president='')
+            recalculate_club_current_members()
+
+        if was_president:
+            messages.success(self.request, '社長已降級為一般學生，社團社長欄位已清空。')
+        else:
+            messages.success(self.request, '學生資料已更新。')
         return response
 
 

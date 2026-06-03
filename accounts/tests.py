@@ -232,3 +232,62 @@ class StudentAdminBulkActionTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.student_two.refresh_from_db()
         self.assertTrue(self.student_two.is_active)
+
+
+class StudentAdminPresidentManagementTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='admin-president-management',
+            password='password',
+            role='admin',
+        )
+        self.club = Club.objects.create(
+            code='P001',
+            name='President Club',
+            president='President User (president-user)',
+            current_members=1,
+        )
+        self.president = User.objects.create_user(
+            username='president-user',
+            password='password',
+            role='president',
+            student_id='P001',
+            first_name='President User',
+            club=self.club,
+        )
+        self.client.force_login(self.admin)
+
+    def test_student_admin_list_shows_president(self):
+        response = self.client.get(
+            reverse('student_admin_list'),
+            {'q': self.president.username},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.president.username)
+        self.assertContains(response, '社長')
+        self.assertContains(response, '降級為一般學生')
+
+    def test_editing_president_demotes_and_clears_club_president(self):
+        response = self.client.post(
+            reverse('student_admin_edit', args=[self.president.pk]),
+            {
+                'username': self.president.username,
+                'student_id': self.president.student_id,
+                'class_name': '',
+                'seat_number': '',
+                'first_name': self.president.first_name,
+                'email': '',
+                'role': 'student',
+                'club': self.club.pk,
+                'is_active': 'on',
+                'password': '',
+            },
+        )
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.president.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertEqual(self.president.role, 'student')
+        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.club.current_members, 1)

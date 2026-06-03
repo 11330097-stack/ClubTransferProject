@@ -66,12 +66,12 @@
                                 <a class="nav-link" href="{% url 'my_requests' %}">我的申請</a>
                             </li>
                         {% endif %}
-                        {% if user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
+                        {% if user.is_superuser or user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'pending_approvals' %}">待審核申請</a>
                             </li>
                         {% endif %}
-                        {% if user.role == 'admin' %}
+                        {% if user.is_superuser or user.role == 'admin' %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'all_requests' %}">全校申請</a>
                             </li>
