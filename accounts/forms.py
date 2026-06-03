@@ -79,7 +79,6 @@ class ClubAdminForm(forms.ModelForm):
             'location',
             'description',
             'max_members',
-            'is_active',
         ]
 
 

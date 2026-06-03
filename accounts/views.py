@@ -124,7 +124,7 @@ class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = Club.objects.all().order_by('code', 'name')
+        queryset = Club.objects.filter(is_active=True).order_by('code', 'name')
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(
@@ -208,16 +208,6 @@ class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
             is_active=True,
             role__in=['student', 'president'],
         ).order_by('role', 'username')
-
-
-class ClubAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
-    def post(self, request, pk):
-        club = get_object_or_404(Club, pk=pk)
-        club.is_active = True
-        club.save(update_fields=['is_active'])
-        recalculate_club_current_members()
-        messages.success(request, '社團已重新啟用。')
-        return redirect('club_admin_list')
 
 
 class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):

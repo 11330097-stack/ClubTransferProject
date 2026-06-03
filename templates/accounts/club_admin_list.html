@@ -28,11 +28,10 @@
             <tr>
                 <th>Code</th>
                 <th>社團名稱</th>
-                <th>老師</th>
+                <th>指導老師</th>
                 <th>社長</th>
                 <th>人數</th>
-                <th>狀態</th>
-                <th>操作快捷列</th>
+                <th>操作</th>
             </tr>
         </thead>
         <tbody>
@@ -44,28 +43,15 @@
                     <td>{{ club.president|default:"-" }}</td>
                     <td>{{ club.current_members }} / {{ club.max_members }}</td>
                     <td>
-                        {% if club.is_active %}
-                            <span class="badge bg-success">啟用</span>
-                        {% else %}
-                            <span class="badge bg-secondary">停用</span>
-                        {% endif %}
-                    </td>
-                    <td>
                         <div class="d-flex flex-wrap gap-1">
                             <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
-                            {% if not club.is_active %}
-                                <form method="post" action="{% url 'club_admin_reactivate' club.pk %}" class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
-                                </form>
-                            {% endif %}
                             <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">刪除</a>
                         </div>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted">沒有符合條件的社團。</td>
+                    <td colspan="6" class="text-center text-muted">沒有符合條件的社團。</td>
                 </tr>
             {% endfor %}
         </tbody>

@@ -1,13 +1,46 @@
 from django.test import TestCase
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 
 from clubs.models import Club
 from transfers.models import ApprovalLog, TransferRequest
 
+from .forms import ClubAdminForm
 from .models import User
 
 
 class ClubAdminDeleteViewTests(TestCase):
+    def test_club_admin_list_only_shows_edit_and_delete_for_active_clubs(self):
+        admin = User.objects.create_user(
+            username='admin-list',
+            password='password',
+            role='admin',
+        )
+        active_club = Club.objects.create(code='ACTIVE', name='Active Club')
+        inactive_club = Club.objects.create(code='INACTIVE', name='Inactive Club', is_active=False)
+
+        self.client.force_login(admin)
+        response = self.client.get(reverse('club_admin_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, active_club.name)
+        self.assertNotContains(response, inactive_club.name)
+        self.assertContains(response, reverse('club_admin_edit', args=[active_club.pk]))
+        self.assertContains(response, reverse('club_admin_delete', args=[active_club.pk]))
+        self.assertNotContains(response, 'reactivate')
+        self.assertNotContains(response, 'deactivate')
+
+    def test_club_reactivate_and_deactivate_urls_do_not_exist(self):
+        with self.assertRaises(NoReverseMatch):
+            reverse('club_admin_reactivate', args=[1])
+        with self.assertRaises(NoReverseMatch):
+            reverse('club_admin_deactivate', args=[1])
+
+        self.assertEqual(self.client.post('/admin-panel/clubs/1/reactivate/').status_code, 404)
+        self.assertEqual(self.client.post('/admin-panel/clubs/1/deactivate/').status_code, 404)
+
+    def test_club_admin_form_does_not_expose_is_active(self):
+        self.assertNotIn('is_active', ClubAdminForm().fields)
+
     def test_safe_delete_releases_accounts_and_demotes_president(self):
         admin = User.objects.create_user(
             username='admin',
@@ -65,6 +98,12 @@ class ClubAdminDeleteViewTests(TestCase):
         self.assertIn(president, unassigned_accounts)
         self.assertIn(student, unassigned_accounts)
         self.assertEqual(president.get_role_display(), '學生')
+
+        response = self.client.get(reverse('club_list'))
+        self.assertNotContains(response, club.name)
+
+        response = self.client.get(reverse('club_admin_list'))
+        self.assertNotContains(response, club.name)
 
 
 class StudentAdminBulkActionTests(TestCase):
