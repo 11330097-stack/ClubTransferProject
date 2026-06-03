@@ -28,6 +28,7 @@
                 <th>姓名</th>
                 <th>Email</th>
                 <th>身分</th>
+                <th>操作</th>
             </tr>
         </thead>
         <tbody>
@@ -38,20 +39,34 @@
                     <td>{{ account.first_name|default:"-" }}</td>
                     <td>{{ account.email|default:"-" }}</td>
                     <td>
-                        {% if account.role == 'student' %}
+                        {% if account.role == 'student' or account.role == 'president' %}
                             <span class="badge bg-primary">學生</span>
-                        {% elif account.role == 'president' %}
-                            <span class="badge bg-success">社長</span>
                         {% elif account.role == 'teacher' %}
                             <span class="badge bg-info text-dark">指導老師</span>
                         {% else %}
                             {{ account.get_role_display }}
                         {% endif %}
                     </td>
+                    <td>
+                        {% if account.role == 'student' %}
+                            <form method="post" action="{% url 'unassigned_student_assign_club' account.pk %}" class="d-flex gap-2">
+                                {% csrf_token %}
+                                <select name="club_id" class="form-select form-select-sm" required>
+                                    <option value="">選擇社團</option>
+                                    {% for club in active_clubs %}
+                                        <option value="{{ club.pk }}">{{ club.code|default:"-" }} {{ club.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary" {% if not active_clubs %}disabled{% endif %}>分配社團</button>
+                            </form>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="5" class="text-center text-muted">沒有未分配帳號。</td>
+                    <td colspan="6" class="text-center text-muted">沒有未分配帳號。</td>
                 </tr>
             {% endfor %}
         </tbody>

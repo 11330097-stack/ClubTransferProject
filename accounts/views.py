@@ -10,7 +10,13 @@ from django.views.generic import CreateView, FormView, ListView, TemplateView, U
 from clubs.models import Club
 from transfers.models import get_user_from_display_text
 from transfers.models import TransferRequest
-from .forms import ClubAdminForm, StudentAccountForm, StudentCsvImportForm
+from .forms import (
+    ClubAdminForm,
+    StudentAccountForm,
+    StudentCsvImportForm,
+    get_teacher_match_values,
+    normalize_teacher_text,
+)
 from .models import User
 from .services import (
     SAMPLE_STUDENT_IMPORT_CSV,
@@ -54,26 +60,6 @@ class ProfileView(LoginRequiredMixin, TemplateView):
     template_name = 'accounts/profile.html'
 
 
-def normalize_teacher_text(value):
-    return ' '.join((value or '').split())
-
-
-def get_teacher_match_values(teacher):
-    full_name = normalize_teacher_text(teacher.get_full_name())
-    first_name = normalize_teacher_text(teacher.first_name)
-    username = normalize_teacher_text(teacher.username)
-    display_name = full_name or first_name or username
-    values = {
-        username,
-        first_name,
-        full_name,
-        normalize_teacher_text(str(teacher)),
-    }
-    if display_name and username:
-        values.add(f'{display_name} ({username})')
-    return {value for value in values if value}
-
-
 class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     template_name = 'accounts/unassigned_account_list.html'
     context_object_name = 'accounts'
@@ -83,7 +69,7 @@ class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView
         query = self.request.GET.get('q', '').strip()
 
         student_accounts = User.objects.filter(
-            role__in=['student', 'president'],
+            role='student',
             is_active=True,
             club__isnull=True,
         )
@@ -114,7 +100,28 @@ class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['q'] = self.request.GET.get('q', '').strip()
+        context['active_clubs'] = Club.objects.filter(is_active=True).order_by('code', 'name')
         return context
+
+
+class UnassignedStudentAssignClubView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, pk):
+        student = get_object_or_404(
+            User,
+            pk=pk,
+            role='student',
+            is_active=True,
+            club__isnull=True,
+        )
+        club = get_object_or_404(Club, pk=request.POST.get('club_id'), is_active=True)
+
+        with transaction.atomic():
+            student.club = club
+            student.save(update_fields=['club'])
+            recalculate_club_current_members()
+
+        messages.success(request, f'已將 {student.username} 分配到 {club.name}。')
+        return redirect('unassigned_account_list')
 
 
 class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
@@ -148,10 +155,16 @@ class ClubAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
     success_url = reverse_lazy('club_admin_list')
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        recalculate_club_current_members()
+        with transaction.atomic():
+            self.object = form.save()
+            president = User.objects.select_for_update().get(pk=form.selected_president.pk)
+            president.role = 'president'
+            president.club = self.object
+            president.save(update_fields=['role', 'club'])
+            recalculate_club_current_members()
+
         messages.success(self.request, '社團已新增。')
-        return response
+        return redirect(self.get_success_url())
 
 
 class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
@@ -161,10 +174,29 @@ class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
     success_url = reverse_lazy('club_admin_list')
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        recalculate_club_current_members()
+        previous_president_text = Club.objects.only('president').get(pk=self.object.pk).president
+        previous_president = get_user_from_display_text(previous_president_text)
+        previous_president_ids = list(
+            User.objects.filter(club=self.object, role='president').values_list('pk', flat=True)
+        )
+        if previous_president and previous_president.role == 'president':
+            previous_president_ids.append(previous_president.pk)
+
+        with transaction.atomic():
+            self.object = form.save()
+            new_president = User.objects.select_for_update().get(pk=form.selected_president.pk)
+
+            User.objects.filter(
+                pk__in=previous_president_ids,
+            ).exclude(pk=new_president.pk).update(role='student', club=self.object)
+
+            new_president.role = 'president'
+            new_president.club = self.object
+            new_president.save(update_fields=['role', 'club'])
+            recalculate_club_current_members()
+
         messages.success(self.request, '社團資料已更新。')
-        return response
+        return redirect(self.get_success_url())
 
 
 class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
@@ -187,9 +219,16 @@ class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         club = get_object_or_404(Club, pk=pk)
 
         with transaction.atomic():
-            presidents = User.objects.filter(club=club, role='president')
-            president_count = presidents.update(role='student', club=None)
-            released_count = president_count + User.objects.filter(club=club).update(club=None)
+            president = get_user_from_display_text(club.president)
+            president_ids = list(
+                User.objects.filter(club=club, role='president').values_list('pk', flat=True)
+            )
+            if president and president.role == 'president':
+                president_ids.append(president.pk)
+
+            released_count = User.objects.filter(club=club).count()
+            User.objects.filter(pk__in=president_ids).update(role='student', club=None)
+            User.objects.filter(club=club).update(club=None)
             club.teacher = ''
             club.president = ''
             club.is_active = False

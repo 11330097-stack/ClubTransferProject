@@ -105,6 +105,206 @@ class ClubAdminDeleteViewTests(TestCase):
         response = self.client.get(reverse('club_admin_list'))
         self.assertNotContains(response, club.name)
 
+    def test_safe_delete_demotes_president_resolved_from_club_text(self):
+        admin = User.objects.create_user(
+            username='admin-text-president',
+            password='password',
+            role='admin',
+        )
+        club = Club.objects.create(
+            code='TEXT',
+            name='Text President Club',
+            president='Text President (text-president)',
+        )
+        president = User.objects.create_user(
+            username='text-president',
+            first_name='Text President',
+            role='president',
+            club=None,
+        )
+
+        self.client.force_login(admin)
+        self.client.post(reverse('club_admin_delete', args=[club.pk]))
+
+        president.refresh_from_db()
+        self.assertEqual(president.role, 'student')
+        self.assertIsNone(president.club)
+
+        response = self.client.get(reverse('unassigned_account_list'))
+        self.assertIn(president, list(response.context['accounts']))
+
+
+class UnassignedStudentAssignClubViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='assign-admin',
+            password='password',
+            role='admin',
+        )
+        self.student = User.objects.create_user(
+            username='unassigned-student',
+            role='student',
+            is_active=True,
+        )
+        self.active_club = Club.objects.create(code='A001', name='Active Club')
+        self.inactive_club = Club.objects.create(
+            code='I001',
+            name='Inactive Club',
+            is_active=False,
+        )
+        self.client.force_login(self.admin)
+
+    def test_unassigned_page_lists_active_clubs_and_assigns_student(self):
+        response = self.client.get(reverse('unassigned_account_list'))
+
+        self.assertContains(response, reverse('unassigned_student_assign_club', args=[self.student.pk]))
+        self.assertContains(response, self.active_club.name)
+        self.assertNotContains(response, self.inactive_club.name)
+
+        response = self.client.post(
+            reverse('unassigned_student_assign_club', args=[self.student.pk]),
+            {'club_id': self.active_club.pk},
+        )
+
+        self.assertRedirects(response, reverse('unassigned_account_list'))
+        self.student.refresh_from_db()
+        self.active_club.refresh_from_db()
+        self.assertEqual(self.student.role, 'student')
+        self.assertEqual(self.student.club, self.active_club)
+        self.assertEqual(self.active_club.current_members, 1)
+
+    def test_inactive_club_cannot_be_assigned(self):
+        response = self.client.post(
+            reverse('unassigned_student_assign_club', args=[self.student.pk]),
+            {'club_id': self.inactive_club.pk},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.student.refresh_from_db()
+        self.assertIsNone(self.student.club)
+
+    def test_non_admin_cannot_assign_student(self):
+        other_student = User.objects.create_user(username='other-student', role='student')
+        self.client.force_login(other_student)
+
+        response = self.client.post(
+            reverse('unassigned_student_assign_club', args=[self.student.pk]),
+            {'club_id': self.active_club.pk},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.student.refresh_from_db()
+        self.assertIsNone(self.student.club)
+
+
+class ClubAdminFormWorkflowTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='club-form-admin',
+            password='password',
+            role='admin',
+        )
+        self.student = User.objects.create_user(
+            username='available-student',
+            first_name='Available Student',
+            role='student',
+            is_active=True,
+        )
+        self.teacher = User.objects.create_user(
+            username='available-teacher',
+            first_name='Available Teacher',
+            role='teacher',
+            is_active=True,
+        )
+        self.client.force_login(self.admin)
+
+    def club_form_data(self, **overrides):
+        data = {
+            'code': 'NEW01',
+            'name': 'New Club',
+            'teacher': self.teacher.pk,
+            'president': self.student.pk,
+            'location': '',
+            'description': '',
+            'max_members': 30,
+        }
+        data.update(overrides)
+        return data
+
+    def test_create_club_uses_unassigned_account_dropdowns(self):
+        assigned_club = Club.objects.create(
+            code='USED',
+            name='Used Club',
+            teacher='Used Teacher (used-teacher)',
+        )
+        assigned_student = User.objects.create_user(
+            username='assigned-student',
+            role='student',
+            club=assigned_club,
+        )
+        used_teacher = User.objects.create_user(
+            username='used-teacher',
+            first_name='Used Teacher',
+            role='teacher',
+        )
+
+        form = ClubAdminForm()
+
+        self.assertIn(self.student, form.fields['president'].queryset)
+        self.assertNotIn(assigned_student, form.fields['president'].queryset)
+        self.assertIn(self.teacher, form.fields['teacher'].queryset)
+        self.assertNotIn(used_teacher, form.fields['teacher'].queryset)
+
+        response = self.client.post(reverse('club_admin_create'), self.club_form_data())
+
+        self.assertRedirects(response, reverse('club_admin_list'))
+        club = Club.objects.get(code='NEW01')
+        self.student.refresh_from_db()
+        self.assertEqual(club.president, 'Available Student (available-student)')
+        self.assertEqual(club.teacher, 'Available Teacher (available-teacher)')
+        self.assertEqual(self.student.role, 'president')
+        self.assertEqual(self.student.club, club)
+        self.assertEqual(club.current_members, 1)
+
+    def test_update_club_changes_president_and_keeps_old_president_in_club(self):
+        club = Club.objects.create(
+            code='EDIT',
+            name='Edit Club',
+            teacher='Available Teacher (available-teacher)',
+            president='Old President (old-president)',
+        )
+        old_president = User.objects.create_user(
+            username='old-president',
+            first_name='Old President',
+            role='president',
+            club=club,
+        )
+        new_president = User.objects.create_user(
+            username='new-president',
+            first_name='New President',
+            role='student',
+        )
+
+        response = self.client.post(
+            reverse('club_admin_edit', args=[club.pk]),
+            self.club_form_data(
+                code=club.code,
+                name=club.name,
+                president=new_president.pk,
+            ),
+        )
+
+        self.assertRedirects(response, reverse('club_admin_list'))
+        club.refresh_from_db()
+        old_president.refresh_from_db()
+        new_president.refresh_from_db()
+        self.assertEqual(club.president, 'New President (new-president)')
+        self.assertEqual(old_president.role, 'student')
+        self.assertEqual(old_president.club, club)
+        self.assertEqual(new_president.role, 'president')
+        self.assertEqual(new_president.club, club)
+        self.assertEqual(club.current_members, 2)
+
 
 class StudentAdminBulkActionTests(TestCase):
     def setUp(self):
