@@ -25,10 +25,25 @@
     {% endif %}
 </form>
 
+<form id="bulk-student-form" method="post">
+    {% csrf_token %}
+</form>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-students">全選</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-students">取消全選</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_deactivate' %}">批次停用</button>
+    <button type="submit" class="btn btn-outline-success btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_reactivate' %}">批次重新啟用</button>
+    <button type="submit" class="btn btn-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_delete_confirm' %}">批次刪除</button>
+</div>
+
 <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
         <thead>
             <tr>
+                <th scope="col">
+                    <input type="checkbox" class="form-check-input" id="toggle-all-students" aria-label="全選學生">
+                </th>
                 <th>Username</th>
                 <th>Student ID</th>
                 <th>班級</th>
@@ -43,6 +58,9 @@
         <tbody>
             {% for student in students %}
                 <tr>
+                    <td>
+                        <input type="checkbox" class="form-check-input student-checkbox" name="student_ids" value="{{ student.pk }}" form="bulk-student-form" aria-label="選取 {{ student.username }}">
+                    </td>
                     <td>{{ student.username }}</td>
                     <td>{{ student.student_id }}</td>
                     <td>{{ student.class_name|default:"-" }}</td>
@@ -78,7 +96,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="9" class="text-center text-muted">沒有符合條件的學生。</td>
+                    <td colspan="10" class="text-center text-muted">沒有符合條件的學生。</td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -98,4 +116,39 @@
         </ul>
     </nav>
 {% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const checkboxes = Array.from(document.querySelectorAll('.student-checkbox'));
+    const toggleAll = document.getElementById('toggle-all-students');
+
+    function setAll(checked) {
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = checked;
+        });
+        toggleAll.checked = checked;
+        toggleAll.indeterminate = false;
+    }
+
+    function updateToggleAll() {
+        const checkedCount = checkboxes.filter(function (checkbox) {
+            return checkbox.checked;
+        }).length;
+        toggleAll.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+        toggleAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+
+    toggleAll.addEventListener('change', function () {
+        setAll(toggleAll.checked);
+    });
+    document.getElementById('select-all-students').addEventListener('click', function () {
+        setAll(true);
+    });
+    document.getElementById('clear-all-students').addEventListener('click', function () {
+        setAll(false);
+    });
+    checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateToggleAll);
+    });
+});
+</script>
 {% endblock %}

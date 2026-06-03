@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}批次刪除學生帳號{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">批次刪除學生帳號</h1>
+
+<div class="alert alert-danger">
+    <p class="mb-2">請確認是否要安全刪除以下 {{ students|length }} 位學生。</p>
+    <p class="mb-0">
+        有轉社申請或審核紀錄的學生只會被停用，不會真正刪除；
+        沒有任何歷史紀錄的學生帳號才會被刪除。
+    </p>
+</div>
+
+<div class="table-responsive mb-3">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Student ID</th>
+                <th>姓名</th>
+                <th>社團</th>
+                <th>狀態</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+                <tr>
+                    <td>{{ student.username }}</td>
+                    <td>{{ student.student_id|default:"-" }}</td>
+                    <td>{{ student.first_name|default:"-" }}</td>
+                    <td>{{ student.club|default:"-" }}</td>
+                    <td>
+                        {% if student.is_active %}
+                            <span class="badge bg-success">啟用</span>
+                        {% else %}
+                            <span class="badge bg-secondary">停用</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<form method="post" action="{% url 'student_admin_bulk_delete' %}">
+    {% csrf_token %}
+    {% for student in students %}
+        <input type="hidden" name="student_ids" value="{{ student.pk }}">
+    {% endfor %}
+    <button type="submit" class="btn btn-danger">確認批次刪除</button>
+    <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+</form>
+{% endblock %}

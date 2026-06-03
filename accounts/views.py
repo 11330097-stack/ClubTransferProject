@@ -9,13 +9,14 @@ from django.views.generic import CreateView, FormView, ListView, TemplateView, U
 
 from clubs.models import Club
 from transfers.models import get_user_from_display_text
-from transfers.models import ApprovalLog, TransferRequest
+from transfers.models import TransferRequest
 from .forms import ClubAdminForm, StudentAccountForm, StudentCsvImportForm
 from .models import User
 from .services import (
     SAMPLE_STUDENT_IMPORT_CSV,
     import_students_from_csv,
     recalculate_club_current_members,
+    safely_delete_student,
 )
 
 
@@ -307,6 +308,88 @@ class StudentAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
         return redirect('student_admin_list')
 
 
+class StudentAdminBulkMixin:
+    def get_selected_students(self, request):
+        student_ids = request.POST.getlist('student_ids')
+        return User.objects.filter(pk__in=student_ids, role='student').order_by('username')
+
+
+class StudentAdminBulkDeactivateView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    StudentAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        students = self.get_selected_students(request)
+        with transaction.atomic():
+            updated_count = students.update(is_active=False)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已批次停用 {updated_count} 位學生。')
+        return redirect('student_admin_list')
+
+
+class StudentAdminBulkReactivateView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    StudentAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        students = self.get_selected_students(request)
+        with transaction.atomic():
+            updated_count = students.update(is_active=True)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已批次重新啟用 {updated_count} 位學生。')
+        return redirect('student_admin_list')
+
+
+class StudentAdminBulkDeleteConfirmView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    StudentAdminBulkMixin,
+    View,
+):
+    template_name = 'accounts/student_admin_bulk_confirm_delete.html'
+
+    def post(self, request):
+        students = list(self.get_selected_students(request))
+        if not students:
+            messages.warning(request, '請先選取要刪除的學生。')
+            return redirect('student_admin_list')
+        return render(request, self.template_name, {'students': students})
+
+
+class StudentAdminBulkDeleteView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    StudentAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        students = list(self.get_selected_students(request))
+        deleted_count = 0
+        deactivated_count = 0
+
+        with transaction.atomic():
+            for student in students:
+                result = safely_delete_student(student)
+                if result == 'deleted':
+                    deleted_count += 1
+                else:
+                    deactivated_count += 1
+            recalculate_club_current_members()
+
+        messages.success(
+            request,
+            f'批次刪除完成：刪除 {deleted_count} 位學生，'
+            f'因有歷史紀錄而停用 {deactivated_count} 位學生。',
+        )
+        return redirect('student_admin_list')
+
+
 class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
     template_name = 'accounts/student_admin_confirm_delete.html'
 
@@ -318,30 +401,18 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         student = get_object_or_404(User, pk=pk, role='student')
 
         with transaction.atomic():
-            has_history = self.has_student_history(student)
-            if has_history:
-                if student.is_active:
-                    student.is_active = False
-                    student.save(update_fields=['is_active'])
+            result = safely_delete_student(student)
+            if result == 'deactivated':
                 messages.warning(
                     request,
                     '此學生已有申請或審核紀錄，為保留歷史資料，系統已改為停用而非刪除。',
                 )
             else:
-                student.delete()
                 messages.success(request, '學生帳號已刪除。')
 
             recalculate_club_current_members()
 
         return redirect('student_admin_list')
-
-    def has_student_history(self, student):
-        has_transfer_requests = TransferRequest.objects.filter(student=student).exists()
-        has_approval_logs = ApprovalLog.objects.filter(
-            Q(transfer_request__student=student) | Q(approver=student)
-        ).exists()
-        return has_transfer_requests or has_approval_logs
-
 
 class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, View):
     def post(self, request, pk):

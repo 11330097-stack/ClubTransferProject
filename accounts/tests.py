@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from clubs.models import Club
+from transfers.models import ApprovalLog, TransferRequest
 
 from .models import User
 
@@ -65,3 +66,130 @@ class ClubAdminDeleteViewTests(TestCase):
         self.assertIn(student, unassigned_accounts)
         self.assertEqual(president.get_role_display(), '學生')
 
+
+class StudentAdminBulkActionTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='admin',
+            password='password',
+            role='admin',
+        )
+        self.club = Club.objects.create(code='A001', name='Club A')
+        self.other_club = Club.objects.create(code='B001', name='Club B')
+        self.student_one = User.objects.create_user(
+            username='student-one',
+            role='student',
+            club=self.club,
+        )
+        self.student_two = User.objects.create_user(
+            username='student-two',
+            role='student',
+            club=self.club,
+        )
+        self.teacher = User.objects.create_user(
+            username='teacher',
+            role='teacher',
+            club=self.club,
+        )
+        self.client.force_login(self.admin)
+
+    def test_bulk_deactivate_and_reactivate_students_only(self):
+        self.club.current_members = 2
+        self.club.save(update_fields=['current_members'])
+
+        response = self.client.post(
+            reverse('student_admin_bulk_deactivate'),
+            {'student_ids': [self.student_one.pk, self.student_two.pk, self.teacher.pk]},
+        )
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.student_one.refresh_from_db()
+        self.student_two.refresh_from_db()
+        self.teacher.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.student_one.is_active)
+        self.assertFalse(self.student_two.is_active)
+        self.assertTrue(self.teacher.is_active)
+        self.assertEqual(self.club.current_members, 0)
+
+        response = self.client.post(
+            reverse('student_admin_bulk_reactivate'),
+            {'student_ids': [self.student_one.pk, self.student_two.pk, self.teacher.pk]},
+        )
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.student_one.refresh_from_db()
+        self.student_two.refresh_from_db()
+        self.teacher.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertTrue(self.student_one.is_active)
+        self.assertTrue(self.student_two.is_active)
+        self.assertTrue(self.teacher.is_active)
+        self.assertEqual(self.club.current_members, 2)
+
+    def test_bulk_delete_deletes_students_without_history_and_deactivates_history(self):
+        student_without_history = User.objects.create_user(
+            username='student-without-history',
+            role='student',
+            club=self.club,
+        )
+        transfer_request = TransferRequest.objects.create(
+            student=self.student_two,
+            original_club=self.club,
+            target_club=self.other_club,
+        )
+        ApprovalLog.objects.create(
+            transfer_request=transfer_request,
+            approver=self.student_one,
+            approval_stage='orig_teacher_pending',
+            result='approve',
+        )
+        self.club.current_members = 3
+        self.club.save(update_fields=['current_members'])
+
+        response = self.client.post(
+            reverse('student_admin_bulk_delete'),
+            {
+                'student_ids': [
+                    student_without_history.pk,
+                    self.student_one.pk,
+                    self.student_two.pk,
+                    self.teacher.pk,
+                ],
+            },
+        )
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.assertFalse(User.objects.filter(pk=student_without_history.pk).exists())
+        self.student_one.refresh_from_db()
+        self.student_two.refresh_from_db()
+        self.teacher.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.student_one.is_active)
+        self.assertFalse(self.student_two.is_active)
+        self.assertTrue(self.teacher.is_active)
+        self.assertEqual(self.club.current_members, 0)
+
+    def test_bulk_delete_confirm_lists_students_only(self):
+        response = self.client.post(
+            reverse('student_admin_bulk_delete_confirm'),
+            {'student_ids': [self.student_one.pk, self.teacher.pk]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        students = list(response.context['students'])
+        self.assertEqual(students, [self.student_one])
+        self.assertContains(response, self.student_one.username)
+        self.assertNotContains(response, self.teacher.username)
+
+    def test_non_admin_cannot_use_bulk_actions(self):
+        self.client.force_login(self.student_one)
+
+        response = self.client.post(
+            reverse('student_admin_bulk_deactivate'),
+            {'student_ids': [self.student_two.pk]},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.student_two.refresh_from_db()
+        self.assertTrue(self.student_two.is_active)

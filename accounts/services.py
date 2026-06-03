@@ -2,8 +2,10 @@ import csv
 import io
 
 from django.db import transaction
+from django.db.models import Q
 
 from clubs.models import Club
+from transfers.models import ApprovalLog, TransferRequest
 from .models import User
 
 
@@ -156,3 +158,22 @@ def recalculate_club_current_members():
             is_active=True,
         ).count()
         club.save(update_fields=['current_members'])
+
+
+def has_student_history(student):
+    has_transfer_requests = TransferRequest.objects.filter(student=student).exists()
+    has_approval_logs = ApprovalLog.objects.filter(
+        Q(transfer_request__student=student) | Q(approver=student)
+    ).exists()
+    return has_transfer_requests or has_approval_logs
+
+
+def safely_delete_student(student):
+    if has_student_history(student):
+        if student.is_active:
+            student.is_active = False
+            student.save(update_fields=['is_active'])
+        return 'deactivated'
+
+    student.delete()
+    return 'deleted'
