@@ -31,6 +31,8 @@
             <tr>
                 <th>Username</th>
                 <th>Student ID</th>
+                <th>班級</th>
+                <th>座號</th>
                 <th>姓名</th>
                 <th>Email</th>
                 <th>社團</th>
@@ -43,6 +45,8 @@
                 <tr>
                     <td>{{ student.username }}</td>
                     <td>{{ student.student_id }}</td>
+                    <td>{{ student.class_name|default:"-" }}</td>
+                    <td>{{ student.seat_number|default:"-" }}</td>
                     <td>{{ student.first_name }}</td>
                     <td>{{ student.email }}</td>
                     <td>{{ student.club|default:"-" }}</td>
@@ -74,7 +78,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted">沒有符合條件的學生。</td>
+                    <td colspan="9" class="text-center text-muted">沒有符合條件的學生。</td>
                 </tr>
             {% endfor %}
         </tbody>

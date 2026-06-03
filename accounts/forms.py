@@ -16,6 +16,8 @@ class StudentAccountForm(forms.ModelForm):
         fields = [
             'username',
             'student_id',
+            'class_name',
+            'seat_number',
             'first_name',
             'email',
             'role',

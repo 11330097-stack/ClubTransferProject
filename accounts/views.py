@@ -186,7 +186,9 @@ class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         club = get_object_or_404(Club, pk=pk)
 
         with transaction.atomic():
-            released_count = self.get_active_members(club).update(club=None)
+            presidents = User.objects.filter(club=club, role='president')
+            president_count = presidents.update(role='student', club=None)
+            released_count = president_count + User.objects.filter(club=club).update(club=None)
             club.teacher = ''
             club.president = ''
             club.is_active = False

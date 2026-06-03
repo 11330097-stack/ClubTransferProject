@@ -10,6 +10,8 @@ from .models import User
 REQUIRED_STUDENT_IMPORT_FIELDS = [
     'username',
     'student_id',
+    'class_name',
+    'seat_number',
     'name',
     'email',
     'club_code',
@@ -17,9 +19,9 @@ REQUIRED_STUDENT_IMPORT_FIELDS = [
 ]
 
 SAMPLE_STUDENT_IMPORT_CSV = (
-    'username,student_id,name,email,club_code,password\n'
-    'student001,2026001,Student One,student001@example.com,D001,student123\n'
-    'student002,2026002,Student Two,student002@example.com,D002,student123'
+    'username,student_id,class_name,seat_number,name,email,club_code,password\n'
+    'student001,2026001,101,1,Student One,student001@example.com,D001,student123\n'
+    'student002,2026002,101,2,Student Two,student002@example.com,D002,student123'
 )
 
 
@@ -86,6 +88,8 @@ def import_students_from_csv(csv_file):
 
             user.username = cleaned['username']
             user.student_id = cleaned['student_id']
+            user.class_name = cleaned['class_name']
+            user.seat_number = int(cleaned['seat_number'])
             user.first_name = cleaned['name']
             user.email = cleaned['email']
             user.club = club
@@ -106,10 +110,16 @@ def import_students_from_csv(csv_file):
 
 
 def validate_student_import_row(row):
-    required_values = ['username', 'student_id', 'name', 'club_code']
+    required_values = ['username', 'student_id', 'class_name', 'seat_number', 'name', 'club_code']
     for field in required_values:
         if not row[field]:
             return f'{field} is required.'
+    try:
+        seat_number = int(row['seat_number'])
+    except ValueError:
+        return 'seat_number must be an integer.'
+    if seat_number < 1 or seat_number > 36:
+        return 'seat_number must be between 1 and 36.'
     return None
 
 

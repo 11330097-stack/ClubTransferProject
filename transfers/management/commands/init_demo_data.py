@@ -23,6 +23,11 @@ STUDENT_PASSWORD = "student123"
 TEACHER_PASSWORD = "teacher123"
 
 
+def get_class_and_seat(student_number):
+    zero_based = student_number - 1
+    return str(101 + zero_based // 36), zero_based % 36 + 1
+
+
 DEMO_CLUBS = [
     {"code": "D001", "name": "籃球社", "category": "sports", "location": "體育館"},
     {"code": "D002", "name": "排球社", "category": "sports", "location": "排球場"},
@@ -140,6 +145,7 @@ class Command(BaseCommand):
 
         for i in range(1, TOTAL_STUDENT_ACCOUNTS + 1):
             username = f"student{i:03d}"
+            class_name, seat_number = get_class_and_seat(i)
 
             if i <= PRESIDENT_COUNT:
                 role = "president"
@@ -155,6 +161,8 @@ class Command(BaseCommand):
                     "email": f"{username}@school.edu.tw",
                     "role": role,
                     "student_id": f"2026{i:03d}",
+                    "class_name": class_name,
+                    "seat_number": seat_number,
                     "club": assigned_club,
                     "is_active": True,
                 },
@@ -164,6 +172,8 @@ class Command(BaseCommand):
             account.email = f"{username}@school.edu.tw"
             account.role = role
             account.student_id = f"2026{i:03d}"
+            account.class_name = class_name
+            account.seat_number = seat_number
             account.club = assigned_club
             account.is_active = True
             account.password = password_hash

@@ -25,6 +25,16 @@ class User(django.contrib.auth.models.AbstractUser):
         blank=True,
         verbose_name='學號'
     )
+    class_name = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='班級'
+    )
+    seat_number = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='座號'
+    )
     club = models.ForeignKey(
         'clubs.Club',
         on_delete=models.SET_NULL,
