@@ -11,7 +11,14 @@
 
 <form method="post">
     {% csrf_token %}
+    {% if return_to_account_admin %}
+        <input type="hidden" name="next" value="account_admin_list">
+    {% endif %}
     <button type="submit" class="btn btn-danger">停用</button>
-    <a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+    {% if return_to_account_admin %}
+        <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+    {% else %}
+        <a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+    {% endif %}
 </form>
 {% endblock %}

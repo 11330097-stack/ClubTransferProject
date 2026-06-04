@@ -556,6 +556,123 @@ class AccountAdminListViewTests(TestCase):
         self.assertContains(response, reverse('teacher_admin_deactivate', args=[self.teacher.pk]))
         self.assertContains(response, reverse('teacher_admin_delete', args=[self.teacher.pk]))
 
+    def test_student_operations_from_account_management_return_to_account_list(self):
+        self.client.force_login(self.admin)
+
+        edit_response = self.client.post(
+            f"{reverse('student_admin_edit', args=[self.student.pk])}?next=account_admin_list",
+            {
+                'username': self.student.username,
+                'student_id': self.student.student_id,
+                'class_name': self.student.class_name,
+                'seat_number': self.student.seat_number,
+                'first_name': 'Updated Student Name',
+                'email': self.student.email,
+                'role': 'student',
+                'club': self.club.pk,
+                'is_active': 'on',
+                'password': '',
+                'next': 'account_admin_list',
+            },
+        )
+        self.assertRedirects(edit_response, reverse('account_admin_list'))
+
+        deactivate_response = self.client.post(
+            reverse('student_admin_deactivate', args=[self.student.pk]),
+            {'next': 'account_admin_list'},
+        )
+        self.assertRedirects(deactivate_response, reverse('account_admin_list'))
+
+        reactivate_response = self.client.post(
+            reverse('student_admin_reactivate', args=[self.student.pk]),
+            {'next': 'account_admin_list'},
+        )
+        self.assertRedirects(reactivate_response, reverse('account_admin_list'))
+
+        delete_target = User.objects.create_user(
+            username='delete-from-account-student',
+            password='password',
+            role='student',
+            student_id='DEL001',
+            club=self.club,
+        )
+        delete_response = self.client.post(
+            reverse('student_admin_delete', args=[delete_target.pk]),
+            {'next': 'account_admin_list'},
+        )
+        self.assertRedirects(delete_response, reverse('account_admin_list'))
+
+        create_response = self.client.post(
+            f"{reverse('student_admin_create')}?next=account_admin_list",
+            {
+                'username': 'created-from-account-student',
+                'student_id': 'CRE001',
+                'class_name': '201',
+                'seat_number': 8,
+                'first_name': 'Created Student',
+                'email': 'created-student@example.com',
+                'role': 'student',
+                'club': '',
+                'is_active': 'on',
+                'password': 'password',
+                'next': 'account_admin_list',
+            },
+        )
+        self.assertRedirects(create_response, reverse('account_admin_list'))
+
+    def test_teacher_operations_from_account_management_return_to_account_list(self):
+        self.client.force_login(self.admin)
+
+        edit_response = self.client.post(
+            f"{reverse('teacher_admin_edit', args=[self.teacher.pk])}?next=account_admin_list",
+            {
+                'username': self.teacher.username,
+                'first_name': 'Updated Teacher Name',
+                'email': self.teacher.email,
+                'is_active': 'on',
+                'password': '',
+                'next': 'account_admin_list',
+            },
+        )
+        self.assertRedirects(edit_response, reverse('account_admin_list'))
+
+        deactivate_response = self.client.post(
+            reverse('teacher_admin_deactivate', args=[self.teacher.pk]),
+            {'next': 'account_admin_list'},
+        )
+        self.assertRedirects(deactivate_response, reverse('account_admin_list'))
+
+        reactivate_response = self.client.post(
+            reverse('teacher_admin_reactivate', args=[self.teacher.pk]),
+            {'next': 'account_admin_list'},
+        )
+        self.assertRedirects(reactivate_response, reverse('account_admin_list'))
+
+        delete_target = User.objects.create_user(
+            username='delete-from-account-teacher',
+            password='password',
+            role='teacher',
+            first_name='Delete Teacher',
+        )
+        delete_response = self.client.post(
+            reverse('teacher_admin_delete', args=[delete_target.pk]),
+            {'next': 'account_admin_list'},
+        )
+        self.assertRedirects(delete_response, reverse('account_admin_list'))
+
+        create_response = self.client.post(
+            f"{reverse('teacher_admin_create')}?next=account_admin_list",
+            {
+                'username': 'created-from-account-teacher',
+                'first_name': 'Created Teacher',
+                'email': 'created-teacher@example.com',
+                'is_active': 'on',
+                'password': 'password',
+                'next': 'account_admin_list',
+            },
+        )
+        self.assertRedirects(create_response, reverse('account_admin_list'))
+
     def test_navbar_links_to_account_management_only(self):
         self.client.force_login(self.admin)
 

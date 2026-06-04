@@ -7,8 +7,8 @@
     <h1 class="h3 mb-0">帳號管理</h1>
     <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-outline-primary btn-sm" href="{% url 'student_admin_import' %}">匯入學生 CSV</a>
-        <a class="btn btn-primary btn-sm" href="{% url 'student_admin_create' %}">新增學生</a>
-        <a class="btn btn-primary btn-sm" href="{% url 'teacher_admin_create' %}">新增指導老師</a>
+        <a class="btn btn-primary btn-sm" href="{% url 'student_admin_create' %}?next=account_admin_list">新增學生</a>
+        <a class="btn btn-primary btn-sm" href="{% url 'teacher_admin_create' %}?next=account_admin_list">新增指導老師</a>
     </div>
 </div>
 
@@ -72,27 +72,29 @@
                     <td>
                         <div class="d-flex flex-wrap gap-1">
                             {% if account.role == 'teacher' %}
-                                <a href="{% url 'teacher_admin_edit' account.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
+                                <a href="{% url 'teacher_admin_edit' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-primary">編輯</a>
                                 {% if account.is_active %}
-                                    <a href="{% url 'teacher_admin_deactivate' account.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
+                                    <a href="{% url 'teacher_admin_deactivate' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-danger">停用</a>
                                 {% else %}
                                     <form method="post" action="{% url 'teacher_admin_reactivate' account.pk %}" class="d-inline">
                                         {% csrf_token %}
+                                        <input type="hidden" name="next" value="account_admin_list">
                                         <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
                                     </form>
                                 {% endif %}
-                                <a href="{% url 'teacher_admin_delete' account.pk %}" class="btn btn-sm btn-danger">刪除</a>
+                                <a href="{% url 'teacher_admin_delete' account.pk %}?next=account_admin_list" class="btn btn-sm btn-danger">刪除</a>
                             {% else %}
-                                <a href="{% url 'student_admin_edit' account.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
+                                <a href="{% url 'student_admin_edit' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-primary">編輯</a>
                                 {% if account.is_active %}
-                                    <a href="{% url 'student_admin_deactivate' account.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
+                                    <a href="{% url 'student_admin_deactivate' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-danger">停用</a>
                                 {% else %}
                                     <form method="post" action="{% url 'student_admin_reactivate' account.pk %}" class="d-inline">
                                         {% csrf_token %}
+                                        <input type="hidden" name="next" value="account_admin_list">
                                         <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
                                     </form>
                                 {% endif %}
-                                <a href="{% url 'student_admin_delete' account.pk %}" class="btn btn-sm btn-danger">刪除</a>
+                                <a href="{% url 'student_admin_delete' account.pk %}?next=account_admin_list" class="btn btn-sm btn-danger">刪除</a>
                             {% endif %}
                         </div>
                     </td>

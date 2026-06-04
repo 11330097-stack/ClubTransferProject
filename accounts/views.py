@@ -4,7 +4,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView, UpdateView, View
 
@@ -48,6 +48,34 @@ class AdminRequiredMixin(UserPassesTestMixin):
         return user.is_authenticated and (
             user.is_superuser or getattr(user, 'role', None) == 'admin'
         )
+
+
+def should_return_to_account_admin(request):
+    if request.POST.get('next') == 'account_admin_list':
+        return True
+    if request.GET.get('next') == 'account_admin_list':
+        return True
+
+    referer = request.META.get('HTTP_REFERER', '')
+    return reverse('account_admin_list') in referer
+
+
+def admin_operation_return_url(request, default_url_name):
+    if should_return_to_account_admin(request):
+        return reverse('account_admin_list')
+    return reverse(default_url_name)
+
+
+class AccountAdminReturnMixin:
+    default_success_url_name = None
+
+    def get_success_url(self):
+        return admin_operation_return_url(self.request, self.default_success_url_name)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['return_to_account_admin'] = should_return_to_account_admin(self.request)
+        return context
 
 
 class HomeView(TemplateView):
@@ -413,11 +441,12 @@ class TeacherAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         ).order_by('code', 'name')
 
 
-class TeacherAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
+class TeacherAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdminReturnMixin, CreateView):
     model = User
     form_class = TeacherAccountForm
     template_name = 'accounts/teacher_admin_form.html'
     success_url = reverse_lazy('teacher_admin_list')
+    default_success_url_name = 'teacher_admin_list'
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -429,11 +458,12 @@ class TeacherAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView)
         return super().form_valid(form)
 
 
-class TeacherAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
+class TeacherAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdminReturnMixin, UpdateView):
     model = User
     form_class = TeacherAccountForm
     template_name = 'accounts/teacher_admin_form.html'
     success_url = reverse_lazy('teacher_admin_list')
+    default_success_url_name = 'teacher_admin_list'
 
     def get_queryset(self):
         return User.objects.filter(role='teacher')
@@ -453,14 +483,21 @@ class TeacherAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
 
     def get(self, request, pk):
         teacher = get_object_or_404(User, pk=pk, role='teacher')
-        return render(request, self.template_name, {'teacher': teacher})
+        return render(
+            request,
+            self.template_name,
+            {
+                'teacher': teacher,
+                'return_to_account_admin': should_return_to_account_admin(request),
+            },
+        )
 
     def post(self, request, pk):
         teacher = get_object_or_404(User, pk=pk, role='teacher')
         with transaction.atomic():
             deactivate_teacher(teacher)
         messages.success(request, '指導老師帳號已停用。')
-        return redirect('teacher_admin_list')
+        return redirect(admin_operation_return_url(request, 'teacher_admin_list'))
 
 
 class TeacherAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
@@ -469,7 +506,7 @@ class TeacherAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
         teacher.is_active = True
         teacher.save(update_fields=['is_active'])
         messages.success(request, '指導老師帳號已重新啟用。')
-        return redirect('teacher_admin_list')
+        return redirect(admin_operation_return_url(request, 'teacher_admin_list'))
 
 
 class TeacherAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
@@ -477,7 +514,14 @@ class TeacherAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
 
     def get(self, request, pk):
         teacher = get_object_or_404(User, pk=pk, role='teacher')
-        return render(request, self.template_name, {'teacher': teacher})
+        return render(
+            request,
+            self.template_name,
+            {
+                'teacher': teacher,
+                'return_to_account_admin': should_return_to_account_admin(request),
+            },
+        )
 
     def post(self, request, pk):
         teacher = get_object_or_404(User, pk=pk, role='teacher')
@@ -492,7 +536,7 @@ class TeacherAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
             else:
                 messages.success(request, '指導老師帳號已刪除。')
 
-        return redirect('teacher_admin_list')
+        return redirect(admin_operation_return_url(request, 'teacher_admin_list'))
 
 
 class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
@@ -661,11 +705,12 @@ class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         return context
 
 
-class StudentAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
+class StudentAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdminReturnMixin, CreateView):
     model = User
     form_class = StudentAccountForm
     template_name = 'accounts/student_admin_form.html'
     success_url = reverse_lazy('student_admin_list')
+    default_success_url_name = 'student_admin_list'
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -679,11 +724,12 @@ class StudentAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView)
         return response
 
 
-class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
+class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdminReturnMixin, UpdateView):
     model = User
     form_class = StudentAccountForm
     template_name = 'accounts/student_admin_form.html'
     success_url = reverse_lazy('student_admin_list')
+    default_success_url_name = 'student_admin_list'
 
     def get_queryset(self):
         return User.objects.filter(role__in=['student', 'president'])
@@ -707,7 +753,14 @@ class StudentAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
 
     def get(self, request, pk):
         student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
-        return render(request, self.template_name, {'student': student})
+        return render(
+            request,
+            self.template_name,
+            {
+                'student': student,
+                'return_to_account_admin': should_return_to_account_admin(request),
+            },
+        )
 
     def post(self, request, pk):
         student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
@@ -715,7 +768,7 @@ class StudentAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
             deactivate_student(student)
             recalculate_club_current_members()
         messages.success(request, '學生帳號已停用。')
-        return redirect('student_admin_list')
+        return redirect(admin_operation_return_url(request, 'student_admin_list'))
 
 
 class StudentAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
@@ -725,7 +778,7 @@ class StudentAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
         student.save(update_fields=['is_active'])
         recalculate_club_current_members()
         messages.success(request, '學生帳號已重新啟用。')
-        return redirect('student_admin_list')
+        return redirect(admin_operation_return_url(request, 'student_admin_list'))
 
 
 class StudentAdminBulkMixin:
@@ -821,7 +874,14 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
 
     def get(self, request, pk):
         student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
-        return render(request, self.template_name, {'student': student})
+        return render(
+            request,
+            self.template_name,
+            {
+                'student': student,
+                'return_to_account_admin': should_return_to_account_admin(request),
+            },
+        )
 
     def post(self, request, pk):
         student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
@@ -838,7 +898,7 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
 
             recalculate_club_current_members()
 
-        return redirect('student_admin_list')
+        return redirect(admin_operation_return_url(request, 'student_admin_list'))
 
 class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, View):
     def post(self, request, pk):
