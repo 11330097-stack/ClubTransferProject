@@ -110,6 +110,47 @@ class TransferWindowResumeView(TransferWindowPauseView):
     success_message = '轉社期已恢復。'
 
 
+class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
+    template_name = 'accounts/account_admin_list.html'
+    context_object_name = 'accounts'
+    paginate_by = 50
+
+    allowed_roles = ['student', 'president', 'teacher']
+
+    def get_queryset(self):
+        queryset = User.objects.filter(
+            role__in=self.allowed_roles,
+            is_superuser=False,
+        ).select_related('club').order_by('role', 'username')
+
+        role = self.request.GET.get('role', '').strip()
+        if role in self.allowed_roles:
+            queryset = queryset.filter(role=role)
+
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(username__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(student_id__icontains=query)
+                | Q(email__icontains=query)
+            )
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['q'] = self.request.GET.get('q', '').strip()
+        context['selected_role'] = self.request.GET.get('role', '').strip()
+        context['role_options'] = [
+            ('', '全部'),
+            ('student', '學生'),
+            ('president', '社長'),
+            ('teacher', '指導老師'),
+        ]
+        return context
+
+
 class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     template_name = 'accounts/unassigned_account_list.html'
     context_object_name = 'accounts'

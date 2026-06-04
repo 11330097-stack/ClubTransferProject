@@ -298,7 +298,7 @@ class TeacherAdminManagementTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-    def test_admin_can_access_teacher_management_and_navbar_link(self):
+    def test_admin_can_access_teacher_management_and_account_navbar_link(self):
         response = self.client.get(reverse('teacher_admin_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -307,8 +307,9 @@ class TeacherAdminManagementTests(TestCase):
         self.assertContains(response, self.club.name)
 
         home_response = self.client.get(reverse('home'))
-        self.assertContains(home_response, reverse('teacher_admin_list'))
-        self.assertContains(home_response, '指導老師管理')
+        self.assertContains(home_response, reverse('account_admin_list'))
+        self.assertContains(home_response, '帳號管理')
+        self.assertNotContains(home_response, '指導老師管理')
 
     def test_student_president_and_teacher_cannot_access_teacher_management(self):
         roles = ['student', 'president', 'teacher']
@@ -419,6 +420,151 @@ class TeacherAdminManagementTests(TestCase):
         self.assertEqual(self.teacher.role, 'teacher')
         self.assertEqual(self.club.teacher, '')
         self.assertTrue(TransferRequest.objects.filter(pk=transfer_request.pk).exists())
+
+
+class AccountAdminListViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='account-admin',
+            password='password',
+            role='admin',
+        )
+        self.superuser = User.objects.create_superuser(
+            username='account-superuser',
+            password='password',
+            email='superuser@example.com',
+        )
+        self.club = Club.objects.create(code='ACC', name='Account Club')
+        self.student = User.objects.create_user(
+            username='account-student',
+            password='password',
+            first_name='Student Name',
+            email='student@example.com',
+            student_id='S100',
+            class_name='101',
+            seat_number=1,
+            role='student',
+            club=self.club,
+        )
+        self.president = User.objects.create_user(
+            username='account-president',
+            password='password',
+            first_name='President Name',
+            email='president@example.com',
+            student_id='P100',
+            class_name='102',
+            seat_number=2,
+            role='president',
+            club=self.club,
+        )
+        self.teacher = User.objects.create_user(
+            username='account-teacher',
+            password='password',
+            first_name='Teacher Name',
+            email='teacher@example.com',
+            role='teacher',
+        )
+        self.hidden_admin = User.objects.create_user(
+            username='hidden-admin',
+            password='password',
+            role='admin',
+        )
+
+    def test_admin_and_superuser_can_access_account_management(self):
+        for user in [self.admin, self.superuser]:
+            self.client.force_login(user)
+
+            response = self.client.get(reverse('account_admin_list'))
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, '帳號管理')
+
+    def test_non_admin_roles_cannot_access_account_management(self):
+        for user in [self.student, self.president, self.teacher]:
+            self.client.force_login(user)
+
+            response = self.client.get(reverse('account_admin_list'))
+
+            self.assertEqual(response.status_code, 403)
+
+    def test_account_management_lists_students_presidents_and_teachers_only(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse('account_admin_list'))
+
+        self.assertEqual(response.status_code, 200)
+        accounts = list(response.context['accounts'])
+        self.assertIn(self.student, accounts)
+        self.assertIn(self.president, accounts)
+        self.assertIn(self.teacher, accounts)
+        self.assertNotIn(self.admin, accounts)
+        self.assertNotIn(self.hidden_admin, accounts)
+        self.assertNotIn(self.superuser, accounts)
+
+    def test_account_management_role_filter(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse('account_admin_list'), {'role': 'teacher'})
+
+        accounts = list(response.context['accounts'])
+        self.assertEqual(accounts, [self.teacher])
+        self.assertContains(response, 'selected')
+
+    def test_account_management_searches_supported_fields(self):
+        self.client.force_login(self.admin)
+        searches = [
+            ('account-student', self.student),
+            ('President Name', self.president),
+            ('S100', self.student),
+            ('teacher@example.com', self.teacher),
+        ]
+
+        for query, expected_account in searches:
+            response = self.client.get(reverse('account_admin_list'), {'q': query})
+
+            accounts = list(response.context['accounts'])
+            self.assertIn(expected_account, accounts)
+
+    def test_account_management_displays_requested_columns_and_teacher_blanks(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse('account_admin_list'))
+
+        self.assertContains(response, '姓名')
+        self.assertContains(response, '身分')
+        self.assertContains(response, 'Email')
+        self.assertContains(response, '班級')
+        self.assertContains(response, '座號')
+        self.assertContains(response, '社團')
+        self.assertContains(response, '狀態')
+        self.assertContains(response, '操作')
+        self.assertContains(response, '學生')
+        self.assertContains(response, '社長')
+        self.assertContains(response, '指導老師')
+        self.assertContains(response, '啟用')
+        self.assertContains(response, '—')
+
+    def test_account_management_uses_existing_operation_urls_by_role(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse('account_admin_list'))
+
+        self.assertContains(response, reverse('student_admin_edit', args=[self.student.pk]))
+        self.assertContains(response, reverse('student_admin_deactivate', args=[self.student.pk]))
+        self.assertContains(response, reverse('student_admin_delete', args=[self.student.pk]))
+        self.assertContains(response, reverse('teacher_admin_edit', args=[self.teacher.pk]))
+        self.assertContains(response, reverse('teacher_admin_deactivate', args=[self.teacher.pk]))
+        self.assertContains(response, reverse('teacher_admin_delete', args=[self.teacher.pk]))
+
+    def test_navbar_links_to_account_management_only(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse('home'))
+
+        self.assertContains(response, reverse('account_admin_list'))
+        self.assertContains(response, '帳號管理')
+        self.assertNotContains(response, '學生管理')
+        self.assertNotContains(response, '指導老師管理')
 
 
 class UnassignedStudentAssignClubViewTests(TestCase):
