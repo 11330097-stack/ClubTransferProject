@@ -2,7 +2,7 @@ import re
 
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from transfers.models import get_user_from_display_text
 from .models import Club
 
 
@@ -22,17 +22,15 @@ class ClubListView(LoginRequiredMixin, ListView):
         queryset = Club.objects.filter(is_active=True)
         query = self.request.GET.get('q', '').strip()
         if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query)
-                | Q(code__icontains=query)
-                | Q(teacher__icontains=query)
-                | Q(president__icontains=query)
-            )
+            queryset = queryset.filter(name__icontains=query)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['q'] = self.request.GET.get('q', '').strip()
+        context['club_name_options'] = Club.objects.filter(
+            is_active=True,
+        ).order_by('name').values_list('name', flat=True)
 
         club_info = []
         for club in context['clubs']:
@@ -66,7 +64,15 @@ class ClubDetailView(LoginRequiredMixin, DetailView):
         
         context['pending_count'] = pending_count
         context['remaining_slots'] = club.get_remaining_slots()
-        context['members'] = club.members.all()
+        president = get_user_from_display_text(club.president)
+        members = list(club.members.all())
+        context['members'] = sorted(
+            members,
+            key=lambda member: (
+                0 if president and member.pk == president.pk else 1,
+                member.first_name or member.username,
+            ),
+        )
         context['teacher_name'] = display_name_without_username(club.teacher)
         context['president_name'] = display_name_without_username(club.president)
         

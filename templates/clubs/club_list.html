@@ -12,7 +12,12 @@
 
 <form method="get" class="row g-2 mb-4">
     <div class="col-sm-8 col-md-6">
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="關鍵字搜尋社團名稱">
+        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="關鍵字搜尋社團名稱" list="club-name-options">
+        <datalist id="club-name-options">
+            {% for club_name in club_name_options %}
+                <option value="{{ club_name }}"></option>
+            {% endfor %}
+        </datalist>
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-secondary">搜尋</button>

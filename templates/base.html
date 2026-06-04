@@ -71,7 +71,14 @@
                         {% endif %}
                         {% if user.is_superuser or user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'pending_approvals' %}">待審核申請</a>
+                                <a class="nav-link position-relative" href="{% url 'pending_approvals' %}">
+                                    待審核申請
+                                    {% if user.is_superuser or user.role == 'admin' %}
+                                        {% if admin_pending_review_count %}
+                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">!</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </a>
                             </li>
                         {% endif %}
                         {% if user.is_superuser or user.role == 'admin' %}

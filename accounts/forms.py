@@ -32,6 +32,16 @@ def get_teacher_match_values(teacher):
     return {value for value in values if value}
 
 
+def generate_unique_club_code():
+    existing_codes = set(Club.objects.filter(code__startswith='C').values_list('code', flat=True))
+    number = 1
+    while True:
+        code = f'C{number:03d}'
+        if code not in existing_codes:
+            return code
+        number += 1
+
+
 class StudentAccountForm(forms.ModelForm):
     password = forms.CharField(
         required=False,
@@ -266,6 +276,9 @@ class ClubAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        is_create = not self.instance.pk
+        if is_create:
+            self.fields.pop('code', None)
 
         current_teacher = get_user_from_display_text(self.instance.teacher)
         current_president = get_user_from_display_text(self.instance.president)
@@ -304,6 +317,11 @@ class ClubAdminForm(forms.ModelForm):
         president = self.cleaned_data['president']
         self.selected_president = president
         return format_user_display_text(president)
+
+    def save(self, commit=True):
+        if not self.instance.pk and not self.instance.code:
+            self.instance.code = generate_unique_club_code()
+        return super().save(commit=commit)
 
 
 class StudentCsvImportForm(forms.Form):

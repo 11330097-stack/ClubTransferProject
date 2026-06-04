@@ -346,8 +346,7 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(
-                Q(username__icontains=query)
-                | Q(first_name__icontains=query)
+                Q(first_name__icontains=query)
                 | Q(student_id__icontains=query)
                 | Q(email__icontains=query)
             )
@@ -514,8 +513,7 @@ class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView
 
         if query:
             search_filter = (
-                Q(username__icontains=query)
-                | Q(student_id__icontains=query)
+                Q(student_id__icontains=query)
                 | Q(first_name__icontains=query)
                 | Q(email__icontains=query)
             )

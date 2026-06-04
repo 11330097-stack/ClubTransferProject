@@ -14,7 +14,7 @@
 
 <form method="get" class="row g-2 mb-3" id="account-filter-form">
     <div class="col-sm-6 col-md-4">
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋 username、姓名、學號或 email">
+        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋姓名、Email 或學號">
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-secondary">搜尋</button>
@@ -55,6 +55,7 @@
                 <th>姓名</th>
                 <th>身分</th>
                 <th>Email</th>
+                <th>學號</th>
                 <th>班級</th>
                 <th>座號</th>
                 <th>社團</th>
@@ -79,6 +80,7 @@
                         {% endif %}
                     </td>
                     <td>{{ account.email|default:"—" }}</td>
+                    <td>{{ account.student_id|default:"—" }}</td>
                     {% if account.role == 'teacher' %}
                         <td>—</td>
                         <td>—</td>
@@ -133,7 +135,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="9" class="text-center text-muted">沒有符合條件的帳號。</td>
+                    <td colspan="10" class="text-center text-muted">沒有符合條件的帳號。</td>
                 </tr>
             {% endfor %}
         </tbody>
