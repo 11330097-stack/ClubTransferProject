@@ -190,9 +190,17 @@
             align-items: center;
             justify-content: center;
             text-decoration: none;
+            z-index: 10;
+        }
+        .account-page-arrow .account-page-arrow-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
             font-size: 1.8rem;
             line-height: 1;
-            z-index: 10;
+            transform: translateY(-1px);
         }
         .account-page-arrow:hover {
             background: rgba(13, 110, 253, 0.55);
@@ -206,14 +214,14 @@
         }
     </style>
     {% if page_obj.has_previous %}
-        <a class="account-page-arrow left" href="?q={{ q|urlencode }}&role={{ selected_role|urlencode }}&page={{ page_obj.previous_page_number }}" aria-label="上一頁">&lsaquo;</a>
+        <a class="account-page-arrow left" href="?q={{ q|urlencode }}&role={{ selected_role|urlencode }}&page={{ page_obj.previous_page_number }}" aria-label="上一頁"><span class="account-page-arrow-icon" aria-hidden="true">&lsaquo;</span></a>
     {% else %}
-        <span class="account-page-arrow left disabled" aria-hidden="true">&lsaquo;</span>
+        <span class="account-page-arrow left disabled" aria-hidden="true"><span class="account-page-arrow-icon">&lsaquo;</span></span>
     {% endif %}
     {% if page_obj.has_next %}
-        <a class="account-page-arrow right" href="?q={{ q|urlencode }}&role={{ selected_role|urlencode }}&page={{ page_obj.next_page_number }}" aria-label="下一頁">&rsaquo;</a>
+        <a class="account-page-arrow right" href="?q={{ q|urlencode }}&role={{ selected_role|urlencode }}&page={{ page_obj.next_page_number }}" aria-label="下一頁"><span class="account-page-arrow-icon" aria-hidden="true">&rsaquo;</span></a>
     {% else %}
-        <span class="account-page-arrow right disabled" aria-hidden="true">&rsaquo;</span>
+        <span class="account-page-arrow right disabled" aria-hidden="true"><span class="account-page-arrow-icon">&rsaquo;</span></span>
     {% endif %}
 {% endif %}
 <script>

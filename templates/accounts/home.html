@@ -8,7 +8,6 @@
     <div class="row align-items-center g-4">
         <div class="col-lg-7">
             <h1 class="display-5 fw-bold mb-3">社團轉社系統</h1>
-            <p class="lead text-muted mb-4">線上申請、透明審核、自動化管理</p>
             <div class="alert alert-light border mb-4">
                 <div class="fw-semibold">轉社申請期間</div>
                 {% if transfer_window %}
@@ -37,11 +36,6 @@
                         <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-lg">申請轉社</a>
                     {% endif %}
                     <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">查看我的申請</a>
-                {% endif %}
-                {% if user.is_authenticated %}
-                    {% if user|can_review_transfers %}
-                        <a href="{% url 'pending_approvals' %}" class="btn btn-outline-secondary btn-lg">查看待審核</a>
-                    {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -93,18 +87,6 @@
                     </div>
                 </a>
             </div>
-        {% endif %}
-        {% if user.is_authenticated %}
-            {% if user|can_review_transfers %}
-                <div class="col">
-                    <a href="{% url 'pending_approvals' %}" class="card h-100 text-decoration-none text-body">
-                        <div class="card-body">
-                            <h2 class="h5 card-title">查看待審核</h2>
-                            <p class="card-text text-muted mb-0">社長、指導老師與訓育組可集中處理待審核申請。</p>
-                        </div>
-                    </a>
-                </div>
-            {% endif %}
         {% endif %}
     </div>
 </section>
