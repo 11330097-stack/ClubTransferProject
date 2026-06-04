@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load account_extras %}
 
 {% block title %}學生管理{% endblock %}
 
@@ -71,7 +72,7 @@
                     <td>{{ student.first_name }}</td>
                     <td>{{ student.email }}</td>
                     <td>{{ student.club|default:"-" }}</td>
-                    <td>{{ student.get_role_display }}</td>
+                    <td>{{ student|display_role }}</td>
                     <td>
                         {% if student.is_active %}
                             <span class="badge bg-success">啟用</span>

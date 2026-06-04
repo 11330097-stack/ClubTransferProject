@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}匯入學生 CSV{% endblock %}
+{% block title %}新增帳號 CSV{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">匯入學生 CSV</h1>
-    <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回學生管理</a>
+    <h1 class="h3 mb-0">新增帳號 CSV</h1>
+    <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回帳號管理</a>
 </div>
 
 <form method="post" enctype="multipart/form-data" class="card card-body mb-3">
@@ -18,7 +18,7 @@
 
 <div class="card card-body mb-3">
     <h2 class="h5">CSV 格式</h2>
-    <p class="mb-2">CSV 欄位需包含 username, student_id, class_name, seat_number, name, email, club_code, password；新增帳號時 password 必填。</p>
+    <p class="mb-2">CSV 欄位需包含 name, role, email, class_name, seat_number, club_code, password。role 只允許 student 或 teacher；username 由系統自動產生。</p>
     <pre class="mb-0">{{ sample_csv }}</pre>
 </div>
 

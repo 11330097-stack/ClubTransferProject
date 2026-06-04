@@ -13,7 +13,7 @@
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-sm-8 col-md-6">
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋 code、社團名稱、老師或社長">
+        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋社團名稱、老師或社長">
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-secondary">搜尋</button>
@@ -29,10 +29,10 @@
     <table class="table table-striped table-hover align-middle">
         <thead>
             <tr>
-                <th>Code</th>
                 <th>社團名稱</th>
                 <th>指導老師</th>
                 <th>社長</th>
+                <th>社課場地</th>
                 <th>人數</th>
                 <th>操作</th>
             </tr>
@@ -40,10 +40,10 @@
         <tbody>
             {% for club in clubs %}
                 <tr>
-                    <td>{{ club.code|default:"-" }}</td>
                     <td>{{ club.name }}</td>
                     <td>{{ club.teacher|default:"-" }}</td>
                     <td>{{ club.president|default:"-" }}</td>
+                    <td>{{ club.location|default:"-" }}</td>
                     <td>{{ club.current_members }} / {{ club.max_members }}</td>
                     <td>
                         <div class="d-flex flex-wrap gap-1">

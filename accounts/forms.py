@@ -4,6 +4,7 @@ from django.db.models import Q
 from clubs.models import Club
 from transfers.models import get_user_from_display_text
 from .models import User
+from .services import generate_unique_student_id, generate_unique_username
 
 
 def format_user_display_text(user):
@@ -65,6 +66,8 @@ class StudentAccountForm(forms.ModelForm):
             self.fields['role'].choices = [('student', 'student')]
             self.fields['role'].initial = 'student'
         self.fields['password'].required = self.is_create
+        if self.instance.pk:
+            self.fields.pop('username', None)
 
     def clean_username(self):
         username = self.cleaned_data['username']
@@ -190,6 +193,52 @@ class AdminProfileForm(forms.ModelForm):
             user.password = self.original_password
         if commit:
             user.save()
+        return user
+
+
+class AccountCreateForm(forms.Form):
+    role = forms.ChoiceField(
+        choices=[('student', '學生'), ('teacher', '指導老師')],
+        label='身分',
+    )
+    first_name = forms.CharField(label='姓名')
+    email = forms.EmailField(required=False, label='Email')
+    class_name = forms.CharField(required=False, label='班級')
+    seat_number = forms.IntegerField(required=False, min_value=1, max_value=99, label='座號')
+    club = forms.ModelChoiceField(
+        queryset=Club.objects.filter(is_active=True).order_by('code', 'name'),
+        required=False,
+        label='社團',
+        empty_label='未分配',
+    )
+    password = forms.CharField(widget=forms.PasswordInput, label='密碼')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        role = cleaned_data.get('role')
+        if role == 'student':
+            if not cleaned_data.get('class_name'):
+                self.add_error('class_name', '學生必填班級。')
+            if cleaned_data.get('seat_number') is None:
+                self.add_error('seat_number', '學生必填座號。')
+        return cleaned_data
+
+    def save(self):
+        role = self.cleaned_data['role']
+        user = User(
+            username=generate_unique_username(role),
+            role=role,
+            first_name=self.cleaned_data['first_name'],
+            email=self.cleaned_data.get('email', ''),
+            is_active=True,
+        )
+        if role == 'student':
+            user.student_id = generate_unique_student_id()
+            user.class_name = self.cleaned_data.get('class_name', '')
+            user.seat_number = self.cleaned_data.get('seat_number')
+            user.club = self.cleaned_data.get('club')
+        user.set_password(self.cleaned_data['password'])
+        user.save()
         return user
 
 

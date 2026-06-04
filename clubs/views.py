@@ -2,6 +2,7 @@ import re
 
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from .models import Club
 
 
@@ -18,10 +19,20 @@ class ClubListView(LoginRequiredMixin, ListView):
     context_object_name = 'clubs'
     
     def get_queryset(self):
-        return Club.objects.filter(is_active=True)
+        queryset = Club.objects.filter(is_active=True)
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query)
+                | Q(code__icontains=query)
+                | Q(teacher__icontains=query)
+                | Q(president__icontains=query)
+            )
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['q'] = self.request.GET.get('q', '').strip()
 
         club_info = []
         for club in context['clubs']:

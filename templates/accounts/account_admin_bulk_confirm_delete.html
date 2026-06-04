@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load account_extras %}
 
 {% block title %}批次刪除帳號{% endblock %}
 
@@ -23,7 +24,7 @@
             {% for account in accounts %}
                 <tr>
                     <td>{{ account.first_name|default:account.username }}</td>
-                    <td>{{ account.get_role_display }}</td>
+                    <td>{{ account|display_role }}</td>
                     <td>{{ account.email|default:"—" }}</td>
                     <td>
                         {% if account.is_active %}
@@ -43,7 +44,7 @@
     {% for account in accounts %}
         <input type="hidden" name="account_ids" value="{{ account.pk }}">
     {% endfor %}
-    <button type="submit" class="btn btn-danger">確認批次刪除</button>
+    <button type="submit" class="btn btn-outline-danger">確認批次刪除</button>
     <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>
 </form>
 {% endblock %}

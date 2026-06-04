@@ -10,12 +10,11 @@ from .models import User
 
 
 REQUIRED_STUDENT_IMPORT_FIELDS = [
-    'username',
-    'student_id',
+    'name',
+    'role',
+    'email',
     'class_name',
     'seat_number',
-    'name',
-    'email',
     'club_code',
     'password',
 ]
@@ -30,9 +29,9 @@ REQUIRED_CLUB_IMPORT_FIELDS = [
 ]
 
 SAMPLE_STUDENT_IMPORT_CSV = (
-    'username,student_id,class_name,seat_number,name,email,club_code,password\n'
-    'student001,2026001,101,1,Student One,student001@example.com,D001,student123\n'
-    'student002,2026002,101,2,Student Two,student002@example.com,D002,student123'
+    'name,role,email,class_name,seat_number,club_code,password\n'
+    'Student One,student,student001@example.com,101,1,D001,student123\n'
+    'Teacher One,teacher,teacher001@example.com,,,,teacher123'
 )
 
 SAMPLE_CLUB_IMPORT_CSV = (
@@ -74,46 +73,43 @@ def import_students_from_csv(csv_file):
                 field: (row.get(field) or '').strip()
                 for field in REQUIRED_STUDENT_IMPORT_FIELDS
             }
-            error = validate_student_import_row(cleaned)
+            error = validate_account_import_row(cleaned)
             if error:
                 result['skipped'] += 1
                 result['errors'].append({'row': row_number, 'reason': error})
                 continue
 
-            club = Club.objects.filter(code=cleaned['club_code']).first()
-            if club is None:
-                result['skipped'] += 1
-                result['errors'].append({
-                    'row': row_number,
-                    'reason': f'Club.code={cleaned["club_code"]} not found.',
-                })
-                continue
+            club = None
+            if cleaned['role'] == 'student' and cleaned['club_code']:
+                club = Club.objects.filter(code=cleaned['club_code'], is_active=True).first()
+                if club is None:
+                    result['skipped'] += 1
+                    result['errors'].append({
+                        'row': row_number,
+                        'reason': f'Active Club.code={cleaned["club_code"]} not found.',
+                    })
+                    continue
 
-            user, created, error = resolve_student_import_user(cleaned)
-            if error:
-                result['skipped'] += 1
-                result['errors'].append({'row': row_number, 'reason': error})
-                continue
+            user, created = resolve_account_import_user(cleaned)
+            if created:
+                user.username = generate_unique_username(cleaned['role'])
+                if cleaned['role'] == 'student':
+                    user.student_id = generate_unique_student_id()
 
-            if created and not cleaned['password']:
-                result['skipped'] += 1
-                result['errors'].append({
-                    'row': row_number,
-                    'reason': 'Password is required for new accounts.',
-                })
-                continue
-
-            user.username = cleaned['username']
-            user.student_id = cleaned['student_id']
-            user.class_name = cleaned['class_name']
-            user.seat_number = int(cleaned['seat_number'])
             user.first_name = cleaned['name']
             user.email = cleaned['email']
-            user.club = club
-            user.role = 'student'
+            user.role = cleaned['role']
             user.is_active = True
-            if cleaned['password']:
-                user.set_password(cleaned['password'])
+            if cleaned['role'] == 'student':
+                user.class_name = cleaned['class_name']
+                user.seat_number = int(cleaned['seat_number'])
+                user.club = club
+            else:
+                user.student_id = ''
+                user.class_name = ''
+                user.seat_number = None
+                user.club = None
+            user.set_password(cleaned['password'])
             user.save()
 
             if created:
@@ -124,6 +120,57 @@ def import_students_from_csv(csv_file):
         recalculate_club_current_members()
 
     return result
+
+
+def generate_unique_username(role):
+    prefix = 'student' if role == 'student' else 'teacher'
+    return generate_unique_value(prefix, 'username', width=3)
+
+
+def generate_unique_student_id():
+    return generate_unique_value('S', 'student_id', width=6)
+
+
+def generate_unique_value(prefix, field_name, width):
+    existing_values = set(
+        User.objects.filter(**{f'{field_name}__startswith': prefix})
+        .values_list(field_name, flat=True)
+    )
+    number = 1
+    while True:
+        value = f'{prefix}{number:0{width}d}'
+        if value not in existing_values:
+            return value
+        number += 1
+
+
+def validate_account_import_row(row):
+    if not row['name']:
+        return 'name is required.'
+    if row['role'] not in ['student', 'teacher']:
+        return 'role must be student or teacher.'
+    if not row['password']:
+        return 'password is required.'
+    if row['role'] == 'student':
+        if not row['class_name']:
+            return 'class_name is required for student.'
+        if not row['seat_number']:
+            return 'seat_number is required for student.'
+        try:
+            seat_number = int(row['seat_number'])
+        except ValueError:
+            return 'seat_number must be an integer.'
+        if seat_number < 1 or seat_number > 99:
+            return 'seat_number must be between 1 and 99.'
+    return None
+
+
+def resolve_account_import_user(row):
+    if row['email']:
+        user = User.objects.filter(email=row['email'], role=row['role']).first()
+        if user:
+            return user, False
+    return User(), True
 
 
 def import_clubs_from_csv(csv_file):

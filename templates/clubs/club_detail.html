@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load account_extras %}
 
 {% block title %}{{ club.name }} - 社團詳情{% endblock %}
 
@@ -70,7 +71,8 @@
                     {% for member in members %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ member.get_full_name|default:member.username }}
-                            {% if member.username in club.president %}
+                            {% is_club_president member club as member_is_president %}
+                            {% if member_is_president %}
                                 <span class="badge bg-primary">社長</span>
                             {% endif %}
                         </li>

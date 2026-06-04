@@ -10,6 +10,20 @@
     </div>
 </div>
 
+<form method="get" class="row g-2 mb-4">
+    <div class="col-sm-8 col-md-6">
+        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="關鍵字搜尋社團名稱">
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-secondary">搜尋</button>
+    </div>
+    {% if q %}
+        <div class="col-auto">
+            <a href="{% url 'club_list' %}" class="btn btn-outline-secondary">清除</a>
+        </div>
+    {% endif %}
+</form>
+
 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
     {% for info in club_info_list %}
     <div class="col">

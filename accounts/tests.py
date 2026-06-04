@@ -565,11 +565,54 @@ class AccountAdminListViewTests(TestCase):
         self.assertContains(response, '全選')
         self.assertContains(response, '取消全選')
         self.assertContains(response, '批次刪除')
+        self.assertContains(response, '批次停用')
         self.assertContains(response, '批次重新啟用')
         self.assertContains(response, reverse('account_admin_bulk_delete_confirm'))
+        self.assertContains(response, reverse('account_admin_bulk_deactivate'))
         self.assertContains(response, reverse('account_admin_bulk_reactivate'))
+        self.assertContains(response, reverse('account_admin_create'))
+        self.assertContains(response, reverse('account_admin_import'))
+        self.assertNotContains(response, '新增學生')
+        self.assertNotContains(response, '新增指導老師')
+        self.assertNotContains(response, '>篩選<')
         self.assertContains(response, 'account-role-filter')
         self.assertContains(response, 'filterForm.submit()')
+
+    def test_account_bulk_deactivate_only_affects_allowed_accounts_and_clears_assignments(self):
+        self.club.president = 'President Name (account-president)'
+        self.club.teacher = 'Teacher Name (account-teacher)'
+        self.club.current_members = 2
+        self.club.save(update_fields=['president', 'teacher', 'current_members'])
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse('account_admin_bulk_deactivate'),
+            {
+                'account_ids': [
+                    self.student.pk,
+                    self.president.pk,
+                    self.teacher.pk,
+                    self.hidden_admin.pk,
+                    self.superuser.pk,
+                ],
+            },
+        )
+
+        self.assertRedirects(response, reverse('account_admin_list'))
+        self.student.refresh_from_db()
+        self.president.refresh_from_db()
+        self.teacher.refresh_from_db()
+        self.hidden_admin.refresh_from_db()
+        self.superuser.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.student.is_active)
+        self.assertFalse(self.president.is_active)
+        self.assertFalse(self.teacher.is_active)
+        self.assertTrue(self.hidden_admin.is_active)
+        self.assertTrue(self.superuser.is_active)
+        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.club.teacher, '')
+        self.assertEqual(self.club.current_members, 0)
 
     def test_account_bulk_reactivate_only_affects_allowed_accounts(self):
         self.student.is_active = False
@@ -680,6 +723,81 @@ class AccountAdminListViewTests(TestCase):
         self.assertFalse(teacher_with_history.is_active)
         self.assertTrue(self.hidden_admin.is_active)
         self.assertEqual(self.club.teacher, '')
+
+    def test_account_create_generates_student_and_teacher_accounts(self):
+        self.client.force_login(self.admin)
+
+        student_response = self.client.post(
+            reverse('account_admin_create'),
+            {
+                'role': 'student',
+                'first_name': 'Generated Student',
+                'email': 'generated-student@example.com',
+                'class_name': '301',
+                'seat_number': 12,
+                'club': '',
+                'password': 'password',
+            },
+        )
+        teacher_response = self.client.post(
+            reverse('account_admin_create'),
+            {
+                'role': 'teacher',
+                'first_name': 'Generated Teacher',
+                'email': 'generated-teacher@example.com',
+                'class_name': '',
+                'seat_number': '',
+                'club': '',
+                'password': 'password',
+            },
+        )
+
+        self.assertRedirects(student_response, reverse('account_admin_list'))
+        self.assertRedirects(teacher_response, reverse('account_admin_list'))
+        student = User.objects.get(email='generated-student@example.com')
+        teacher = User.objects.get(email='generated-teacher@example.com')
+        self.assertEqual(student.role, 'student')
+        self.assertTrue(student.username.startswith('student'))
+        self.assertTrue(student.student_id.startswith('S'))
+        self.assertEqual(student.class_name, '301')
+        self.assertEqual(student.seat_number, 12)
+        self.assertIsNone(student.club)
+        self.assertEqual(teacher.role, 'teacher')
+        self.assertTrue(teacher.username.startswith('teacher'))
+        self.assertEqual(teacher.student_id, '')
+
+    def test_account_csv_import_creates_students_and_teachers(self):
+        active_club = Club.objects.create(code='CSV01', name='CSV Active Club', is_active=True)
+        inactive_club = Club.objects.create(code='CSV02', name='CSV Inactive Club', is_active=False)
+        self.client.force_login(self.admin)
+        content = (
+            'name,role,email,class_name,seat_number,club_code,password\n'
+            'CSV Student,student,csv-student@example.com,401,3,CSV01,password\n'
+            'CSV Unassigned,student,csv-unassigned@example.com,402,4,,password\n'
+            'CSV Teacher,teacher,csv-teacher@example.com,,,,password\n'
+            'Bad Role,boss,bad-role@example.com,,,,password\n'
+            'Bad Club,student,bad-club@example.com,403,5,CSV02,password\n'
+        )
+
+        response = self.client.post(
+            reverse('account_admin_import'),
+            {'csv_file': csv_upload(content)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.context['result']
+        self.assertEqual(result['created'], 3)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(result['skipped'], 2)
+        student = User.objects.get(email='csv-student@example.com')
+        unassigned = User.objects.get(email='csv-unassigned@example.com')
+        teacher = User.objects.get(email='csv-teacher@example.com')
+        self.assertEqual(student.role, 'student')
+        self.assertEqual(student.club, active_club)
+        self.assertIsNone(unassigned.club)
+        self.assertEqual(teacher.role, 'teacher')
+        self.assertFalse(User.objects.filter(email='bad-club@example.com').exists())
+        self.assertContains(response, 'Active Club.code=CSV02 not found.')
 
     def test_student_operations_from_account_management_return_to_account_list(self):
         self.client.force_login(self.admin)

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load account_extras %}
 
 {% block title %}帳號管理{% endblock %}
 
@@ -6,9 +7,8 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">帳號管理</h1>
     <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-outline-primary btn-sm" href="{% url 'student_admin_import' %}">匯入學生 CSV</a>
-        <a class="btn btn-primary btn-sm" href="{% url 'student_admin_create' %}?next=account_admin_list">新增學生</a>
-        <a class="btn btn-primary btn-sm" href="{% url 'teacher_admin_create' %}?next=account_admin_list">新增指導老師</a>
+        <a class="btn btn-outline-primary btn-sm" href="{% url 'account_admin_import' %}">新增帳號 CSV</a>
+        <a class="btn btn-primary btn-sm" href="{% url 'account_admin_create' %}">新增帳號</a>
     </div>
 </div>
 
@@ -16,15 +16,15 @@
     <div class="col-sm-6 col-md-4">
         <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋 username、姓名、學號或 email">
     </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-secondary">搜尋</button>
+    </div>
     <div class="col-sm-4 col-md-3">
         <select name="role" class="form-select" id="account-role-filter">
             {% for value, label in role_options %}
                 <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
         </select>
-    </div>
-    <div class="col-auto">
-        <button type="submit" class="btn btn-secondary">篩選</button>
     </div>
     {% if q or selected_role %}
         <div class="col-auto">
@@ -40,8 +40,9 @@
 <div class="d-flex flex-wrap gap-2 mb-3">
     <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-accounts">全選</button>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-accounts">取消全選</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_delete_confirm' %}">批次刪除</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_deactivate' %}">批次停用</button>
     <button type="submit" class="btn btn-outline-success btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_reactivate' %}">批次重新啟用</button>
-    <button type="submit" class="btn btn-danger btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_delete_confirm' %}">批次刪除</button>
 </div>
 
 <div class="table-responsive">
@@ -68,7 +69,15 @@
                         <input type="checkbox" class="form-check-input account-checkbox" name="account_ids" value="{{ account.pk }}" form="account-bulk-form" aria-label="選取 {{ account.username }}">
                     </td>
                     <td>{{ account.first_name|default:account.username }}</td>
-                    <td>{{ account.get_role_display }}</td>
+                    <td>
+                        {% if account.role == 'student' or account.role == 'president' %}
+                            <span class="badge bg-primary">{{ account|display_role }}</span>
+                        {% elif account.role == 'teacher' %}
+                            <span class="badge bg-info text-dark">指導老師</span>
+                        {% else %}
+                            {{ account|display_role }}
+                        {% endif %}
+                    </td>
                     <td>{{ account.email|default:"—" }}</td>
                     {% if account.role == 'teacher' %}
                         <td>—</td>
@@ -99,9 +108,15 @@
                                         <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
                                     </form>
                                 {% endif %}
-                                <a href="{% url 'teacher_admin_delete' account.pk %}?next=account_admin_list" class="btn btn-sm btn-danger">刪除</a>
+                                <a href="{% url 'teacher_admin_delete' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-danger">刪除</a>
                             {% else %}
                                 <a href="{% url 'student_admin_edit' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-primary">編輯</a>
+                                {% if account.role == 'student' and account.club %}
+                                    <form method="post" action="{% url 'account_admin_promote_president' account.pk %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success">晉升社長</button>
+                                    </form>
+                                {% endif %}
                                 {% if account.is_active %}
                                     <a href="{% url 'student_admin_deactivate' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-danger">停用</a>
                                 {% else %}
@@ -111,7 +126,7 @@
                                         <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
                                     </form>
                                 {% endif %}
-                                <a href="{% url 'student_admin_delete' account.pk %}?next=account_admin_list" class="btn btn-sm btn-danger">刪除</a>
+                                <a href="{% url 'student_admin_delete' account.pk %}?next=account_admin_list" class="btn btn-sm btn-outline-danger">刪除</a>
                             {% endif %}
                         </div>
                     </td>
@@ -126,17 +141,45 @@
 </div>
 
 {% if is_paginated %}
-    <nav>
-        <ul class="pagination">
-            {% if page_obj.has_previous %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ selected_role }}&page={{ page_obj.previous_page_number }}">上一頁</a></li>
-            {% endif %}
-            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-            {% if page_obj.has_next %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ selected_role }}&page={{ page_obj.next_page_number }}">下一頁</a></li>
-            {% endif %}
-        </ul>
-    </nav>
+    <style>
+        .account-page-arrow {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(13, 110, 253, 0.35);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-size: 1.8rem;
+            line-height: 1;
+            z-index: 10;
+        }
+        .account-page-arrow:hover {
+            background: rgba(13, 110, 253, 0.55);
+            color: #fff;
+        }
+        .account-page-arrow.left { left: 16px; }
+        .account-page-arrow.right { right: 16px; }
+        .account-page-arrow.disabled {
+            opacity: 0.25;
+            pointer-events: none;
+        }
+    </style>
+    {% if page_obj.has_previous %}
+        <a class="account-page-arrow left" href="?q={{ q|urlencode }}&role={{ selected_role|urlencode }}&page={{ page_obj.previous_page_number }}" aria-label="上一頁">&lsaquo;</a>
+    {% else %}
+        <span class="account-page-arrow left disabled" aria-hidden="true">&lsaquo;</span>
+    {% endif %}
+    {% if page_obj.has_next %}
+        <a class="account-page-arrow right" href="?q={{ q|urlencode }}&role={{ selected_role|urlencode }}&page={{ page_obj.next_page_number }}" aria-label="下一頁">&rsaquo;</a>
+    {% else %}
+        <span class="account-page-arrow right disabled" aria-hidden="true">&rsaquo;</span>
+    {% endif %}
 {% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

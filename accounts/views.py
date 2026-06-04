@@ -22,6 +22,7 @@ from transfers.models import (
 from transfers.services import get_transfer_window_state
 from .forms import (
     AdminProfileForm,
+    AccountCreateForm,
     ClubAdminForm,
     ClubCsvImportForm,
     StudentAccountForm,
@@ -36,6 +37,7 @@ from .services import (
     SAMPLE_STUDENT_IMPORT_CSV,
     deactivate_student,
     deactivate_teacher,
+    clear_president_assignment,
     import_clubs_from_csv,
     import_students_from_csv,
     recalculate_club_current_members,
@@ -338,6 +340,8 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         role = self.request.GET.get('role', '').strip()
         if role in self.allowed_roles:
             queryset = queryset.filter(role=role)
+        elif role == 'inactive':
+            queryset = queryset.filter(is_active=False)
 
         query = self.request.GET.get('q', '').strip()
         if query:
@@ -359,6 +363,7 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
             ('student', '學生'),
             ('president', '社長'),
             ('teacher', '指導老師'),
+            ('inactive', '已停用帳號'),
         ]
         return context
 
@@ -397,6 +402,34 @@ class AccountAdminBulkReactivateView(
             recalculate_club_current_members()
 
         messages.success(request, f'已批次重新啟用 {updated_count} 個帳號。')
+        return redirect('account_admin_list')
+
+
+class AccountAdminBulkDeactivateView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    AccountAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        accounts = list(self.get_selected_accounts(request))
+        if not accounts:
+            messages.warning(request, '請先選取要停用的帳號。')
+            return redirect('account_admin_list')
+
+        with transaction.atomic():
+            updated_count = 0
+            for account in accounts:
+                if account.role in ['student', 'president']:
+                    deactivate_student(account)
+                elif account.role == 'teacher':
+                    deactivate_teacher(account)
+                else:
+                    continue
+                updated_count += 1
+            recalculate_club_current_members()
+
+        messages.success(request, f'已批次停用 {updated_count} 個帳號。')
         return redirect('account_admin_list')
 
 
@@ -450,6 +483,18 @@ class AccountAdminBulkDeleteView(
             f'因有歷史紀錄而停用 {deactivated_count} 個帳號。',
         )
         return redirect('account_admin_list')
+
+
+class AccountAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, FormView):
+    template_name = 'accounts/account_admin_form.html'
+    form_class = AccountCreateForm
+    success_url = reverse_lazy('account_admin_list')
+
+    def form_valid(self, form):
+        user = form.save()
+        recalculate_club_current_members()
+        messages.success(self.request, f'已新增帳號 {user.username}。')
+        return super().form_valid(form)
 
 
 class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
@@ -850,6 +895,16 @@ class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdmi
     def form_valid(self, form):
         with transaction.atomic():
             response = super().form_valid(form)
+            if self.object.role == 'president':
+                current_president = (
+                    get_user_from_display_text(self.object.club.president)
+                    if self.object.club_id and self.object.club.president
+                    else None
+                )
+                if not current_president or current_president.pk != self.object.pk:
+                    clear_president_assignment(self.object)
+                    self.object.role = 'student'
+                    self.object.save(update_fields=['role'])
             recalculate_club_current_members()
 
         messages.success(self.request, '學生資料已更新。')
@@ -1009,20 +1064,22 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         return redirect(admin_operation_return_url(request, 'student_admin_list'))
 
 class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, View):
+    success_url_name = 'student_admin_list'
+
     def post(self, request, pk):
         student = get_object_or_404(User.objects.select_related('club'), pk=pk)
 
         if student.role == 'president':
             messages.warning(request, '此學生已經是社長，無法重複晉升。')
-            return redirect('student_admin_list')
+            return redirect(self.success_url_name)
 
         if student.role != 'student':
             messages.error(request, '只有一般學生可以晉升為社長。')
-            return redirect('student_admin_list')
+            return redirect(self.success_url_name)
 
         if not student.club_id:
             messages.error(request, '此學生目前沒有社團，無法晉升為社長。')
-            return redirect('student_admin_list')
+            return redirect(self.success_url_name)
 
         with transaction.atomic():
             student = User.objects.select_for_update().select_related('club').get(pk=student.pk)
@@ -1046,13 +1103,17 @@ class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, V
             recalculate_club_current_members()
 
         messages.success(request, f'{display_name} 已晉升為 {club.name} 社長。')
-        return redirect('student_admin_list')
+        return redirect(self.success_url_name)
+
+
+class AccountAdminPromotePresidentView(StudentAdminPromotePresidentView):
+    success_url_name = 'account_admin_list'
 
 
 class StudentCsvImportView(LoginRequiredMixin, AdminRequiredMixin, FormView):
     template_name = 'accounts/student_admin_import.html'
     form_class = StudentCsvImportForm
-    success_url = reverse_lazy('student_admin_import')
+    success_url = reverse_lazy('account_admin_import')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
