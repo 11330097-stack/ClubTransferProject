@@ -12,12 +12,12 @@
     </div>
 </div>
 
-<form method="get" class="row g-2 mb-3">
+<form method="get" class="row g-2 mb-3" id="account-filter-form">
     <div class="col-sm-6 col-md-4">
         <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋 username、姓名、學號或 email">
     </div>
     <div class="col-sm-4 col-md-3">
-        <select name="role" class="form-select">
+        <select name="role" class="form-select" id="account-role-filter">
             {% for value, label in role_options %}
                 <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
@@ -33,10 +33,24 @@
     {% endif %}
 </form>
 
+<form id="account-bulk-form" method="post">
+    {% csrf_token %}
+</form>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-accounts">全選</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-accounts">取消全選</button>
+    <button type="submit" class="btn btn-outline-success btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_reactivate' %}">批次重新啟用</button>
+    <button type="submit" class="btn btn-danger btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_delete_confirm' %}">批次刪除</button>
+</div>
+
 <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
         <thead>
             <tr>
+                <th scope="col">
+                    <input type="checkbox" class="form-check-input" id="toggle-all-accounts" aria-label="全選帳號">
+                </th>
                 <th>姓名</th>
                 <th>身分</th>
                 <th>Email</th>
@@ -50,6 +64,9 @@
         <tbody>
             {% for account in accounts %}
                 <tr>
+                    <td>
+                        <input type="checkbox" class="form-check-input account-checkbox" name="account_ids" value="{{ account.pk }}" form="account-bulk-form" aria-label="選取 {{ account.username }}">
+                    </td>
                     <td>{{ account.first_name|default:account.username }}</td>
                     <td>{{ account.get_role_display }}</td>
                     <td>{{ account.email|default:"—" }}</td>
@@ -101,7 +118,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted">沒有符合條件的帳號。</td>
+                    <td colspan="9" class="text-center text-muted">沒有符合條件的帳號。</td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -121,4 +138,54 @@
         </ul>
     </nav>
 {% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const roleFilter = document.getElementById('account-role-filter');
+    const filterForm = document.getElementById('account-filter-form');
+    if (roleFilter && filterForm) {
+        roleFilter.addEventListener('change', function () {
+            filterForm.submit();
+        });
+    }
+
+    const checkboxes = Array.from(document.querySelectorAll('.account-checkbox'));
+    const toggleAll = document.getElementById('toggle-all-accounts');
+
+    function setAll(checked) {
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = checked;
+        });
+        if (toggleAll) {
+            toggleAll.checked = checked;
+            toggleAll.indeterminate = false;
+        }
+    }
+
+    function updateToggleAll() {
+        if (!toggleAll) {
+            return;
+        }
+        const checkedCount = checkboxes.filter(function (checkbox) {
+            return checkbox.checked;
+        }).length;
+        toggleAll.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+        toggleAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+
+    if (toggleAll) {
+        toggleAll.addEventListener('change', function () {
+            setAll(toggleAll.checked);
+        });
+    }
+    document.getElementById('select-all-accounts').addEventListener('click', function () {
+        setAll(true);
+    });
+    document.getElementById('clear-all-accounts').addEventListener('click', function () {
+        setAll(false);
+    });
+    checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateToggleAll);
+    });
+});
+</script>
 {% endblock %}

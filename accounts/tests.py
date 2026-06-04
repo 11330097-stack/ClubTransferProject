@@ -556,6 +556,131 @@ class AccountAdminListViewTests(TestCase):
         self.assertContains(response, reverse('teacher_admin_deactivate', args=[self.teacher.pk]))
         self.assertContains(response, reverse('teacher_admin_delete', args=[self.teacher.pk]))
 
+    def test_account_management_has_bulk_controls_and_auto_role_filter(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse('account_admin_list'))
+
+        self.assertContains(response, 'account-checkbox')
+        self.assertContains(response, '全選')
+        self.assertContains(response, '取消全選')
+        self.assertContains(response, '批次刪除')
+        self.assertContains(response, '批次重新啟用')
+        self.assertContains(response, reverse('account_admin_bulk_delete_confirm'))
+        self.assertContains(response, reverse('account_admin_bulk_reactivate'))
+        self.assertContains(response, 'account-role-filter')
+        self.assertContains(response, 'filterForm.submit()')
+
+    def test_account_bulk_reactivate_only_affects_allowed_accounts(self):
+        self.student.is_active = False
+        self.student.save(update_fields=['is_active'])
+        self.teacher.is_active = False
+        self.teacher.save(update_fields=['is_active'])
+        self.hidden_admin.is_active = False
+        self.hidden_admin.save(update_fields=['is_active'])
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse('account_admin_bulk_reactivate'),
+            {
+                'account_ids': [
+                    self.student.pk,
+                    self.teacher.pk,
+                    self.hidden_admin.pk,
+                    self.superuser.pk,
+                ],
+            },
+        )
+
+        self.assertRedirects(response, reverse('account_admin_list'))
+        self.student.refresh_from_db()
+        self.teacher.refresh_from_db()
+        self.hidden_admin.refresh_from_db()
+        self.superuser.refresh_from_db()
+        self.assertTrue(self.student.is_active)
+        self.assertTrue(self.teacher.is_active)
+        self.assertFalse(self.hidden_admin.is_active)
+        self.assertTrue(self.superuser.is_active)
+
+    def test_account_bulk_delete_uses_safe_delete_for_students_and_teachers(self):
+        student_without_history = User.objects.create_user(
+            username='account-bulk-delete-student',
+            password='password',
+            role='student',
+            student_id='BD001',
+            club=self.club,
+        )
+        student_with_history = User.objects.create_user(
+            username='account-bulk-history-student',
+            password='password',
+            role='student',
+            student_id='BD002',
+            club=self.club,
+        )
+        teacher_with_history = User.objects.create_user(
+            username='account-bulk-history-teacher',
+            password='password',
+            role='teacher',
+            first_name='Bulk Teacher',
+        )
+        self.club.teacher = 'Bulk Teacher (account-bulk-history-teacher)'
+        self.club.save(update_fields=['teacher'])
+        other_club = Club.objects.create(code='BDO', name='Bulk Delete Other')
+        transfer_request = TransferRequest.objects.create(
+            student=student_with_history,
+            original_club=self.club,
+            target_club=other_club,
+        )
+        ApprovalLog.objects.create(
+            transfer_request=transfer_request,
+            approver=teacher_with_history,
+            approval_stage='orig_teacher_pending',
+            result='approve',
+        )
+        self.client.force_login(self.admin)
+
+        confirm_response = self.client.post(
+            reverse('account_admin_bulk_delete_confirm'),
+            {
+                'account_ids': [
+                    student_without_history.pk,
+                    student_with_history.pk,
+                    teacher_with_history.pk,
+                    self.hidden_admin.pk,
+                ],
+            },
+        )
+
+        self.assertEqual(confirm_response.status_code, 200)
+        accounts = list(confirm_response.context['accounts'])
+        self.assertIn(student_without_history, accounts)
+        self.assertIn(student_with_history, accounts)
+        self.assertIn(teacher_with_history, accounts)
+        self.assertNotIn(self.hidden_admin, accounts)
+
+        response = self.client.post(
+            reverse('account_admin_bulk_delete'),
+            {
+                'account_ids': [
+                    student_without_history.pk,
+                    student_with_history.pk,
+                    teacher_with_history.pk,
+                    self.hidden_admin.pk,
+                ],
+            },
+        )
+
+        self.assertRedirects(response, reverse('account_admin_list'))
+        self.assertFalse(User.objects.filter(pk=student_without_history.pk).exists())
+        student_with_history.refresh_from_db()
+        teacher_with_history.refresh_from_db()
+        self.hidden_admin.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(student_with_history.is_active)
+        self.assertFalse(teacher_with_history.is_active)
+        self.assertTrue(self.hidden_admin.is_active)
+        self.assertEqual(self.club.teacher, '')
+
     def test_student_operations_from_account_management_return_to_account_list(self):
         self.client.force_login(self.admin)
 
@@ -684,6 +809,75 @@ class AccountAdminListViewTests(TestCase):
         self.assertNotContains(response, '指導老師管理')
 
 
+class AdminProfileTests(TestCase):
+    def test_admin_profile_hides_student_fields_and_can_edit_self(self):
+        admin = User.objects.create_user(
+            username='profile-admin',
+            password='old-password',
+            role='admin',
+            first_name='Profile Admin',
+            email='old@example.com',
+            student_id='ADMIN001',
+            class_name='999',
+            seat_number=1,
+        )
+        self.client.force_login(admin)
+
+        profile_response = self.client.get(reverse('profile'))
+
+        self.assertContains(profile_response, '編輯個人資料')
+        self.assertNotContains(profile_response, '學號')
+        self.assertNotContains(profile_response, '所屬社團')
+
+        edit_response = self.client.post(
+            reverse('admin_profile_edit'),
+            {
+                'username': 'updated-profile-admin',
+                'first_name': 'Updated Admin',
+                'email': 'updated@example.com',
+                'password': '',
+            },
+        )
+
+        self.assertRedirects(edit_response, reverse('profile'))
+        admin.refresh_from_db()
+        self.assertEqual(admin.username, 'updated-profile-admin')
+        self.assertEqual(admin.first_name, 'Updated Admin')
+        self.assertEqual(admin.email, 'updated@example.com')
+        self.assertTrue(admin.check_password('old-password'))
+
+        password_response = self.client.post(
+            reverse('admin_profile_edit'),
+            {
+                'username': admin.username,
+                'first_name': admin.first_name,
+                'email': admin.email,
+                'password': 'new-password',
+            },
+        )
+
+        self.assertRedirects(password_response, reverse('profile'))
+        admin.refresh_from_db()
+        self.assertTrue(admin.check_password('new-password'))
+
+    def test_non_admin_profile_is_unchanged_and_cannot_edit_admin_profile(self):
+        student = User.objects.create_user(
+            username='profile-student',
+            password='password',
+            role='student',
+            student_id='ST001',
+        )
+        self.client.force_login(student)
+
+        profile_response = self.client.get(reverse('profile'))
+        edit_response = self.client.get(reverse('admin_profile_edit'))
+
+        self.assertContains(profile_response, '學號')
+        self.assertContains(profile_response, '所屬社團')
+        self.assertNotContains(profile_response, '編輯個人資料')
+        self.assertEqual(edit_response.status_code, 403)
+
+
 class UnassignedStudentAssignClubViewTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
@@ -710,6 +904,12 @@ class UnassignedStudentAssignClubViewTests(TestCase):
         self.assertContains(response, reverse('unassigned_student_assign_club', args=[self.student.pk]))
         self.assertContains(response, self.active_club.name)
         self.assertNotContains(response, self.inactive_club.name)
+        self.assertContains(response, '<th>姓名</th>', html=True)
+        self.assertContains(response, '<th>身分</th>', html=True)
+        self.assertContains(response, '<th>Email</th>', html=True)
+        self.assertContains(response, '<th>班級</th>', html=True)
+        self.assertContains(response, '<th>座號</th>', html=True)
+        self.assertNotContains(response, '<th>社團</th>', html=True)
 
         response = self.client.post(
             reverse('unassigned_student_assign_club', args=[self.student.pk]),

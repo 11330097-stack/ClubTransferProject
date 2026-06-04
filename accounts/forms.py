@@ -157,6 +157,42 @@ class TeacherAccountForm(forms.ModelForm):
         return user
 
 
+class AdminProfileForm(forms.ModelForm):
+    password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='留空代表不修改密碼。',
+    )
+
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'email', 'password']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.original_password = self.instance.password
+
+    def clean_username(self):
+        username = self.cleaned_data['username']
+        queryset = User.objects.filter(username=username)
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise forms.ValidationError('username 已存在。')
+        return username
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        else:
+            user.password = self.original_password
+        if commit:
+            user.save()
+        return user
+
+
 class ClubAdminForm(forms.ModelForm):
     teacher = forms.ModelChoiceField(
         queryset=User.objects.none(),

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}批次刪除帳號{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">批次刪除帳號</h1>
+
+<div class="alert alert-danger">
+    請確認是否要批次刪除以下帳號。有歷史紀錄的帳號會改為停用，不會真正刪除。
+</div>
+
+<div class="table-responsive mb-3">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>姓名</th>
+                <th>身分</th>
+                <th>Email</th>
+                <th>狀態</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for account in accounts %}
+                <tr>
+                    <td>{{ account.first_name|default:account.username }}</td>
+                    <td>{{ account.get_role_display }}</td>
+                    <td>{{ account.email|default:"—" }}</td>
+                    <td>
+                        {% if account.is_active %}
+                            <span class="badge bg-success">啟用</span>
+                        {% else %}
+                            <span class="badge bg-secondary">停用</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<form method="post" action="{% url 'account_admin_bulk_delete' %}">
+    {% csrf_token %}
+    {% for account in accounts %}
+        <input type="hidden" name="account_ids" value="{{ account.pk }}">
+    {% endfor %}
+    <button type="submit" class="btn btn-danger">確認批次刪除</button>
+    <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+</form>
+{% endblock %}

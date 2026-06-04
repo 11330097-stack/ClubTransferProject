@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
 from django.db.models import Count, Q
@@ -20,6 +21,7 @@ from transfers.models import (
 )
 from transfers.services import get_transfer_window_state
 from .forms import (
+    AdminProfileForm,
     ClubAdminForm,
     ClubCsvImportForm,
     StudentAccountForm,
@@ -103,6 +105,23 @@ class HomeView(TemplateView):
 
 class ProfileView(LoginRequiredMixin, TemplateView):
     template_name = 'accounts/profile.html'
+
+
+class AdminProfileUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
+    model = User
+    form_class = AdminProfileForm
+    template_name = 'accounts/admin_profile_form.html'
+    success_url = reverse_lazy('profile')
+
+    def get_object(self, queryset=None):
+        return self.request.user
+
+    def form_valid(self, form):
+        messages.success(self.request, '個人資料已更新。')
+        response = super().form_valid(form)
+        if form.cleaned_data.get('password'):
+            update_session_auth_hash(self.request, self.object)
+        return response
 
 
 class TransferWindowSettingsView(LoginRequiredMixin, AdminRequiredMixin, View):
@@ -342,6 +361,95 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
             ('teacher', '指導老師'),
         ]
         return context
+
+
+class AccountAdminBulkMixin:
+    allowed_roles = ['student', 'president', 'teacher']
+
+    def get_selected_accounts(self, request):
+        account_ids = request.POST.getlist('account_ids')
+        return User.objects.filter(
+            pk__in=account_ids,
+            role__in=self.allowed_roles,
+            is_superuser=False,
+        ).select_related('club').order_by('role', 'username')
+
+
+class AccountAdminBulkReactivateView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    AccountAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        accounts = list(self.get_selected_accounts(request))
+        if not accounts:
+            messages.warning(request, '請先選取要重新啟用的帳號。')
+            return redirect('account_admin_list')
+
+        with transaction.atomic():
+            updated_count = 0
+            for account in accounts:
+                if not account.is_active:
+                    account.is_active = True
+                    account.save(update_fields=['is_active'])
+                    updated_count += 1
+            recalculate_club_current_members()
+
+        messages.success(request, f'已批次重新啟用 {updated_count} 個帳號。')
+        return redirect('account_admin_list')
+
+
+class AccountAdminBulkDeleteConfirmView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    AccountAdminBulkMixin,
+    View,
+):
+    template_name = 'accounts/account_admin_bulk_confirm_delete.html'
+
+    def post(self, request):
+        accounts = list(self.get_selected_accounts(request))
+        if not accounts:
+            messages.warning(request, '請先選取要刪除的帳號。')
+            return redirect('account_admin_list')
+
+        return render(request, self.template_name, {'accounts': accounts})
+
+
+class AccountAdminBulkDeleteView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    AccountAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        accounts = list(self.get_selected_accounts(request))
+        deleted_count = 0
+        deactivated_count = 0
+
+        with transaction.atomic():
+            for account in accounts:
+                if account.role in ['student', 'president']:
+                    result = safely_delete_student(account)
+                elif account.role == 'teacher':
+                    result = safely_delete_teacher(account)
+                else:
+                    continue
+
+                if result == 'deleted':
+                    deleted_count += 1
+                else:
+                    deactivated_count += 1
+
+            recalculate_club_current_members()
+
+        messages.success(
+            request,
+            f'批次刪除完成：刪除 {deleted_count} 個帳號，'
+            f'因有歷史紀錄而停用 {deactivated_count} 個帳號。',
+        )
+        return redirect('account_admin_list')
 
 
 class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView):

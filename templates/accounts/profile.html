@@ -19,24 +19,28 @@
                         <td class="text-muted">帳號</td>
                         <td>{{ user.username }}</td>
                     </tr>
-                    <tr>
-                        <td class="text-muted">學號</td>
-                        <td>{{ user.student_id|default:"未設定" }}</td>
-                    </tr>
+                    {% if not user.is_superuser and user.role != 'admin' %}
+                        <tr>
+                            <td class="text-muted">學號</td>
+                            <td>{{ user.student_id|default:"未設定" }}</td>
+                        </tr>
+                    {% endif %}
                     <tr>
                         <td class="text-muted">身分組</td>
                         <td><span class="badge bg-info">{{ user.get_role_display }}</span></td>
                     </tr>
-                    <tr>
-                        <td class="text-muted">所屬社團</td>
-                        <td>
-                            {% if user.club %}
-                                <a href="{% url 'club_detail' user.club.pk %}">{{ user.club.name }}</a>
-                            {% else %}
-                                <span class="text-muted">未加入社團</span>
-                            {% endif %}
-                        </td>
-                    </tr>
+                    {% if not user.is_superuser and user.role != 'admin' %}
+                        <tr>
+                            <td class="text-muted">所屬社團</td>
+                            <td>
+                                {% if user.club %}
+                                    <a href="{% url 'club_detail' user.club.pk %}">{{ user.club.name }}</a>
+                                {% else %}
+                                    <span class="text-muted">未加入社團</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
                     <tr>
                         <td class="text-muted">Email</td>
                         <td>{{ user.email|default:"未設定" }}</td>
@@ -44,6 +48,9 @@
                 </table>
             </div>
             <div class="card-footer">
+                {% if user.is_superuser or user.role == 'admin' %}
+                    <a href="{% url 'admin_profile_edit' %}" class="btn btn-primary">編輯個人資料</a>
+                {% endif %}
                 <a href="{% url 'home' %}" class="btn btn-secondary">返回首頁</a>
             </div>
         </div>
