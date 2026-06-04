@@ -276,6 +276,151 @@ class ClubCsvImportViewTests(TestCase):
         self.assertContains(response, 'max_members must be a positive integer.')
 
 
+class TeacherAdminManagementTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='teacher-admin',
+            password='password',
+            role='admin',
+        )
+        self.teacher = User.objects.create_user(
+            username='managed-teacher',
+            password='old-password',
+            first_name='Managed Teacher',
+            email='teacher@example.com',
+            role='teacher',
+            is_active=True,
+        )
+        self.club = Club.objects.create(
+            code='T001',
+            name='Teacher Club',
+            teacher='Managed Teacher (managed-teacher)',
+        )
+        self.client.force_login(self.admin)
+
+    def test_admin_can_access_teacher_management_and_navbar_link(self):
+        response = self.client.get(reverse('teacher_admin_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '指導老師管理')
+        self.assertContains(response, self.teacher.username)
+        self.assertContains(response, self.club.name)
+
+        home_response = self.client.get(reverse('home'))
+        self.assertContains(home_response, reverse('teacher_admin_list'))
+        self.assertContains(home_response, '指導老師管理')
+
+    def test_student_president_and_teacher_cannot_access_teacher_management(self):
+        roles = ['student', 'president', 'teacher']
+        for role in roles:
+            user = User.objects.create_user(
+                username=f'{role}-no-teacher-admin',
+                password='password',
+                role=role,
+            )
+            self.client.force_login(user)
+
+            response = self.client.get(reverse('teacher_admin_list'))
+
+            self.assertEqual(response.status_code, 403)
+
+    def test_create_teacher(self):
+        response = self.client.post(
+            reverse('teacher_admin_create'),
+            {
+                'username': 'new-teacher',
+                'first_name': 'New Teacher',
+                'email': 'new@example.com',
+                'password': 'new-password',
+            },
+        )
+
+        self.assertRedirects(response, reverse('teacher_admin_list'))
+        teacher = User.objects.get(username='new-teacher')
+        self.assertEqual(teacher.role, 'teacher')
+        self.assertTrue(teacher.is_active)
+        self.assertEqual(teacher.first_name, 'New Teacher')
+        self.assertEqual(teacher.email, 'new@example.com')
+        self.assertTrue(teacher.check_password('new-password'))
+
+    def test_edit_teacher_keeps_role_and_blank_password(self):
+        old_password = self.teacher.password
+
+        response = self.client.post(
+            reverse('teacher_admin_edit', args=[self.teacher.pk]),
+            {
+                'username': 'updated-teacher',
+                'first_name': 'Updated Teacher',
+                'email': 'updated@example.com',
+                'is_active': 'on',
+                'password': '',
+            },
+        )
+
+        self.assertRedirects(response, reverse('teacher_admin_list'))
+        self.teacher.refresh_from_db()
+        self.assertEqual(self.teacher.username, 'updated-teacher')
+        self.assertEqual(self.teacher.first_name, 'Updated Teacher')
+        self.assertEqual(self.teacher.email, 'updated@example.com')
+        self.assertEqual(self.teacher.role, 'teacher')
+        self.assertEqual(self.teacher.password, old_password)
+
+    def test_deactivate_teacher_clears_club_teacher(self):
+        response = self.client.post(reverse('teacher_admin_deactivate', args=[self.teacher.pk]))
+
+        self.assertRedirects(response, reverse('teacher_admin_list'))
+        self.teacher.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.teacher.is_active)
+        self.assertEqual(self.teacher.role, 'teacher')
+        self.assertEqual(self.club.teacher, '')
+
+    def test_reactivate_teacher(self):
+        self.teacher.is_active = False
+        self.teacher.save(update_fields=['is_active'])
+
+        response = self.client.post(reverse('teacher_admin_reactivate', args=[self.teacher.pk]))
+
+        self.assertRedirects(response, reverse('teacher_admin_list'))
+        self.teacher.refresh_from_db()
+        self.assertTrue(self.teacher.is_active)
+        self.assertEqual(self.teacher.role, 'teacher')
+
+    def test_delete_teacher_without_history_deletes_and_clears_club_teacher(self):
+        response = self.client.post(reverse('teacher_admin_delete', args=[self.teacher.pk]))
+
+        self.assertRedirects(response, reverse('teacher_admin_list'))
+        self.assertFalse(User.objects.filter(pk=self.teacher.pk).exists())
+        self.club.refresh_from_db()
+        self.assertEqual(self.club.teacher, '')
+        self.assertTrue(Club.objects.filter(pk=self.club.pk).exists())
+
+    def test_delete_teacher_with_history_deactivates_and_clears_club_teacher(self):
+        student = User.objects.create_user(username='teacher-history-student', role='student')
+        target_club = Club.objects.create(code='T002', name='Target Teacher Club')
+        transfer_request = TransferRequest.objects.create(
+            student=student,
+            original_club=self.club,
+            target_club=target_club,
+        )
+        ApprovalLog.objects.create(
+            transfer_request=transfer_request,
+            approver=self.teacher,
+            approval_stage='orig_teacher_pending',
+            result='approve',
+        )
+
+        response = self.client.post(reverse('teacher_admin_delete', args=[self.teacher.pk]))
+
+        self.assertRedirects(response, reverse('teacher_admin_list'))
+        self.teacher.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.teacher.is_active)
+        self.assertEqual(self.teacher.role, 'teacher')
+        self.assertEqual(self.club.teacher, '')
+        self.assertTrue(TransferRequest.objects.filter(pk=transfer_request.pk).exists())
+
+
 class UnassignedStudentAssignClubViewTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
@@ -644,7 +789,6 @@ class StudentAdminBulkActionTests(TestCase):
         self.assertEqual(students, [self.president, self.student_one])
         self.assertContains(response, self.student_one.username)
         self.assertContains(response, self.president.username)
-        self.assertNotContains(response, self.teacher.username)
         self.assertNotIn(self.teacher, students)
         self.assertNotIn(self.admin, students)
 

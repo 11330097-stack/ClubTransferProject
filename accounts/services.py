@@ -340,6 +340,22 @@ def clear_president_assignment(student):
         Club.objects.filter(president__icontains=f'({student.username})').update(president='')
 
 
+def clear_teacher_assignment(teacher):
+    if teacher.role != 'teacher':
+        return
+
+    teacher_values = [
+        teacher.username,
+        teacher.first_name,
+        teacher.get_full_name(),
+        format_import_user_display_text(teacher),
+    ]
+    query = Q(teacher__icontains=f'({teacher.username})')
+    for value in {value for value in teacher_values if value}:
+        query |= Q(teacher=value)
+    Club.objects.filter(query).update(teacher='')
+
+
 def deactivate_student(student):
     clear_president_assignment(student)
     if student.is_active:
@@ -355,4 +371,26 @@ def safely_delete_student(student):
         return 'deactivated'
 
     student.delete()
+    return 'deleted'
+
+
+def deactivate_teacher(teacher):
+    clear_teacher_assignment(teacher)
+    if teacher.is_active:
+        teacher.is_active = False
+        teacher.save(update_fields=['is_active'])
+
+
+def has_teacher_history(teacher):
+    return ApprovalLog.objects.filter(approver=teacher).exists()
+
+
+def safely_delete_teacher(teacher):
+    clear_teacher_assignment(teacher)
+
+    if has_teacher_history(teacher):
+        deactivate_teacher(teacher)
+        return 'deactivated'
+
+    teacher.delete()
     return 'deleted'

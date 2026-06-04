@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}指導老師管理{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">指導老師管理</h1>
+    <a class="btn btn-primary btn-sm" href="{% url 'teacher_admin_create' %}">新增指導老師</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-sm-8 col-md-6">
+        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋 username、姓名或 email">
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-secondary">搜尋</button>
+    </div>
+    {% if q %}
+        <div class="col-auto">
+            <a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">清除</a>
+        </div>
+    {% endif %}
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>姓名</th>
+                <th>Email</th>
+                <th>是否啟用</th>
+                <th>目前指導的社團</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for teacher in teachers %}
+                <tr>
+                    <td>{{ teacher.username }}</td>
+                    <td>{{ teacher.first_name|default:"-" }}</td>
+                    <td>{{ teacher.email|default:"-" }}</td>
+                    <td>
+                        {% if teacher.is_active %}
+                            <span class="badge bg-success">啟用</span>
+                        {% else %}
+                            <span class="badge bg-secondary">停用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for club in teacher.guided_clubs %}
+                            <span class="badge bg-light text-dark border">{{ club.name }}</span>
+                        {% empty %}
+                            -
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-1">
+                            <a href="{% url 'teacher_admin_edit' teacher.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
+                            {% if teacher.is_active %}
+                                <a href="{% url 'teacher_admin_deactivate' teacher.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
+                            {% else %}
+                                <form method="post" action="{% url 'teacher_admin_reactivate' teacher.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
+                                </form>
+                            {% endif %}
+                            <a href="{% url 'teacher_admin_delete' teacher.pk %}" class="btn btn-sm btn-danger">刪除</a>
+                        </div>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">沒有符合條件的指導老師。</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if is_paginated %}
+    <nav>
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">上一頁</a></li>
+            {% endif %}
+            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.next_page_number }}">下一頁</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
+{% endblock %}

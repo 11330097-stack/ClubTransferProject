@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}停用指導老師{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">停用指導老師帳號</h1>
+
+<div class="alert alert-warning">
+    確定要停用 {{ teacher.first_name|default:teacher.username }} ({{ teacher.username }}) 嗎？若此老師正在指導社團，社團的指導老師欄位會被清空。
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">停用</button>
+    <a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+</form>
+{% endblock %}

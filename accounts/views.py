@@ -15,6 +15,7 @@ from .forms import (
     ClubCsvImportForm,
     StudentAccountForm,
     StudentCsvImportForm,
+    TeacherAccountForm,
     get_teacher_match_values,
     normalize_teacher_text,
 )
@@ -23,10 +24,12 @@ from .services import (
     SAMPLE_CLUB_IMPORT_CSV,
     SAMPLE_STUDENT_IMPORT_CSV,
     deactivate_student,
+    deactivate_teacher,
     import_clubs_from_csv,
     import_students_from_csv,
     recalculate_club_current_members,
     safely_delete_student,
+    safely_delete_teacher,
 )
 
 
@@ -126,6 +129,121 @@ class UnassignedStudentAssignClubView(LoginRequiredMixin, AdminRequiredMixin, Vi
 
         messages.success(request, f'已將 {student.username} 分配到 {club.name}。')
         return redirect('unassigned_account_list')
+
+
+class TeacherAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
+    model = User
+    template_name = 'accounts/teacher_admin_list.html'
+    context_object_name = 'teachers'
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = User.objects.filter(role='teacher').order_by('username')
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(username__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(email__icontains=query)
+            )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        teachers = list(context['teachers'])
+        for teacher in teachers:
+            teacher.guided_clubs = self.get_guided_clubs(teacher)
+        context['teachers'] = teachers
+        context['q'] = self.request.GET.get('q', '').strip()
+        return context
+
+    def get_guided_clubs(self, teacher):
+        return Club.objects.filter(
+            teacher__icontains=f'({teacher.username})',
+            is_active=True,
+        ).order_by('code', 'name')
+
+
+class TeacherAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
+    model = User
+    form_class = TeacherAccountForm
+    template_name = 'accounts/teacher_admin_form.html'
+    success_url = reverse_lazy('teacher_admin_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['is_create'] = True
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, '指導老師帳號已新增。')
+        return super().form_valid(form)
+
+
+class TeacherAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
+    model = User
+    form_class = TeacherAccountForm
+    template_name = 'accounts/teacher_admin_form.html'
+    success_url = reverse_lazy('teacher_admin_list')
+
+    def get_queryset(self):
+        return User.objects.filter(role='teacher')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['is_create'] = False
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, '指導老師資料已更新。')
+        return super().form_valid(form)
+
+
+class TeacherAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    template_name = 'accounts/teacher_admin_confirm_deactivate.html'
+
+    def get(self, request, pk):
+        teacher = get_object_or_404(User, pk=pk, role='teacher')
+        return render(request, self.template_name, {'teacher': teacher})
+
+    def post(self, request, pk):
+        teacher = get_object_or_404(User, pk=pk, role='teacher')
+        with transaction.atomic():
+            deactivate_teacher(teacher)
+        messages.success(request, '指導老師帳號已停用。')
+        return redirect('teacher_admin_list')
+
+
+class TeacherAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, pk):
+        teacher = get_object_or_404(User, pk=pk, role='teacher')
+        teacher.is_active = True
+        teacher.save(update_fields=['is_active'])
+        messages.success(request, '指導老師帳號已重新啟用。')
+        return redirect('teacher_admin_list')
+
+
+class TeacherAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
+    template_name = 'accounts/teacher_admin_confirm_delete.html'
+
+    def get(self, request, pk):
+        teacher = get_object_or_404(User, pk=pk, role='teacher')
+        return render(request, self.template_name, {'teacher': teacher})
+
+    def post(self, request, pk):
+        teacher = get_object_or_404(User, pk=pk, role='teacher')
+
+        with transaction.atomic():
+            result = safely_delete_teacher(teacher)
+            if result == 'deactivated':
+                messages.warning(
+                    request,
+                    '此指導老師已有審核紀錄，為保留歷史資料，系統已改為停用而非刪除。',
+                )
+            else:
+                messages.success(request, '指導老師帳號已刪除。')
+
+        return redirect('teacher_admin_list')
 
 
 class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):

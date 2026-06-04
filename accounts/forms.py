@@ -103,6 +103,60 @@ class StudentAccountForm(forms.ModelForm):
         return user
 
 
+class TeacherAccountForm(forms.ModelForm):
+    password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='新增時必填；編輯時留空代表不修改密碼。',
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'username',
+            'first_name',
+            'email',
+            'is_active',
+            'password',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        self.is_create = kwargs.pop('is_create', False)
+        super().__init__(*args, **kwargs)
+        self.original_password = self.instance.password
+        self.fields['password'].required = self.is_create
+
+    def clean_username(self):
+        username = self.cleaned_data['username']
+        queryset = User.objects.filter(username=username)
+        if self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise forms.ValidationError('username 已存在。')
+        return username
+
+    def clean_first_name(self):
+        first_name = self.cleaned_data['first_name'].strip()
+        if not first_name:
+            raise forms.ValidationError('姓名必填。')
+        return first_name
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.role = 'teacher'
+        if self.is_create:
+            user.is_active = True
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        elif user.pk:
+            user.password = self.original_password
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
+
+
 class ClubAdminForm(forms.ModelForm):
     teacher = forms.ModelChoiceField(
         queryset=User.objects.none(),
