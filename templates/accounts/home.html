@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load account_extras %}
 
 {% block title %}社團轉社系統{% endblock %}
 
@@ -38,7 +39,7 @@
                     <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">查看我的申請</a>
                 {% endif %}
                 {% if user.is_authenticated %}
-                    {% if user.is_superuser or user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
+                    {% if user|can_review_transfers %}
                         <a href="{% url 'pending_approvals' %}" class="btn btn-outline-secondary btn-lg">查看待審核</a>
                     {% endif %}
                 {% endif %}
@@ -58,12 +59,14 @@
                         <div class="text-muted small">學生人數</div>
                     </div>
                 </div>
-                <div class="col-4">
-                    <div class="border rounded p-3 text-center h-100">
-                        <div class="h2 mb-1">{{ pending_count }}</div>
-                        <div class="text-muted small">待審核申請</div>
+                {% if user|can_review_transfers %}
+                    <div class="col-4">
+                        <div class="border rounded p-3 text-center h-100">
+                            <div class="h2 mb-1">{{ pending_count }}</div>
+                            <div class="text-muted small">待審核申請</div>
+                        </div>
                     </div>
-                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -92,7 +95,7 @@
             </div>
         {% endif %}
         {% if user.is_authenticated %}
-            {% if user.is_superuser or user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
+            {% if user|can_review_transfers %}
                 <div class="col">
                     <a href="{% url 'pending_approvals' %}" class="card h-100 text-decoration-none text-body">
                         <div class="card-body">

@@ -25,36 +25,73 @@
     {% endif %}
 </form>
 
+<form id="club-bulk-form" method="post">
+    {% csrf_token %}
+</form>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-clubs">全選</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-clubs">取消全選</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_delete' %}">批次刪除</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_deactivate' %}">批次停用</button>
+    <button type="submit" class="btn btn-outline-success btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_reactivate' %}">批次重新啟用</button>
+</div>
+
 <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
         <thead>
             <tr>
+                <th>
+                    <input type="checkbox" class="form-check-input" id="toggle-all-clubs" aria-label="全選社團">
+                </th>
                 <th>社團名稱</th>
                 <th>指導老師</th>
                 <th>社長</th>
                 <th>社課場地</th>
                 <th>人數</th>
+                <th>狀態</th>
                 <th>操作</th>
             </tr>
         </thead>
         <tbody>
             {% for club in clubs %}
                 <tr>
+                    <td>
+                        <input type="checkbox" class="form-check-input club-checkbox" name="club_ids" value="{{ club.pk }}" form="club-bulk-form" aria-label="選取 {{ club.name }}">
+                    </td>
                     <td>{{ club.name }}</td>
                     <td>{{ club.teacher|default:"-" }}</td>
                     <td>{{ club.president|default:"-" }}</td>
                     <td>{{ club.location|default:"-" }}</td>
                     <td>{{ club.current_members }} / {{ club.max_members }}</td>
                     <td>
+                        {% if club.is_active %}
+                            <span class="badge bg-success">啟用</span>
+                        {% else %}
+                            <span class="badge bg-secondary">停用</span>
+                        {% endif %}
+                    </td>
+                    <td>
                         <div class="d-flex flex-wrap gap-1">
                             <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
+                            {% if club.is_active %}
+                                <form method="post" action="{% url 'club_admin_deactivate' club.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">停用</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{% url 'club_admin_reactivate' club.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
+                                </form>
+                            {% endif %}
                             <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">刪除</a>
                         </div>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted">沒有符合條件的社團。</td>
+                    <td colspan="8" class="text-center text-muted">沒有符合條件的社團。</td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -74,4 +111,47 @@
         </ul>
     </nav>
 {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const checkboxes = Array.from(document.querySelectorAll('.club-checkbox'));
+    const toggleAll = document.getElementById('toggle-all-clubs');
+
+    function setAll(checked) {
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = checked;
+        });
+        if (toggleAll) {
+            toggleAll.checked = checked;
+            toggleAll.indeterminate = false;
+        }
+    }
+
+    function updateToggleAll() {
+        if (!toggleAll) {
+            return;
+        }
+        const checkedCount = checkboxes.filter(function (checkbox) {
+            return checkbox.checked;
+        }).length;
+        toggleAll.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+        toggleAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+
+    if (toggleAll) {
+        toggleAll.addEventListener('change', function () {
+            setAll(toggleAll.checked);
+        });
+    }
+    document.getElementById('select-all-clubs').addEventListener('click', function () {
+        setAll(true);
+    });
+    document.getElementById('clear-all-clubs').addEventListener('click', function () {
+        setAll(false);
+    });
+    checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateToggleAll);
+    });
+});
+</script>
 {% endblock %}

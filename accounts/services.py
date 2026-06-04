@@ -405,9 +405,16 @@ def clear_teacher_assignment(teacher):
 
 def deactivate_student(student):
     clear_president_assignment(student)
+    update_fields = []
+    if student.role == 'president':
+        student.role = 'student'
+        student.club = None
+        update_fields.extend(['role', 'club'])
     if student.is_active:
         student.is_active = False
-        student.save(update_fields=['is_active'])
+        update_fields.append('is_active')
+    if update_fields:
+        student.save(update_fields=update_fields)
 
 
 def safely_delete_student(student):

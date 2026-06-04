@@ -10,6 +10,7 @@ from .models import TransferRequest, ApprovalLog
 from .services import get_transfer_window_state
 from clubs.models import Club
 from accounts.models import User
+from accounts.permissions import can_review_transfer_requests, is_training_admin
 
 
 REVIEWABLE_STATUSES = [
@@ -19,10 +20,6 @@ REVIEWABLE_STATUSES = [
     'new_teacher_pending',
     'admin_pending',
 ]
-
-
-def is_training_admin(user):
-    return user.is_superuser or getattr(user, 'role', None) == 'admin'
 
 
 class StudentRequiredMixin(UserPassesTestMixin):
@@ -54,7 +51,7 @@ class ApproverRequiredMixin(UserPassesTestMixin):
     """檢查是否為審核者（社長、老師、管理員）"""
     def test_func(self):
         user = self.request.user
-        return is_training_admin(user) or getattr(user, 'role', None) in ['president', 'teacher']
+        return can_review_transfer_requests(user)
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
@@ -193,7 +190,7 @@ class RequestDetailView(LoginRequiredMixin, DetailView):
         if is_training_admin(user):
             context['return_url_name'] = 'all_requests'
             context['return_label'] = '返回全校申請'
-        elif getattr(user, 'role', None) in ['president', 'teacher']:
+        elif can_review_transfer_requests(user):
             context['return_url_name'] = 'pending_approvals'
             context['return_label'] = '返回待審核申請'
         else:

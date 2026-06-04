@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
@@ -32,6 +33,7 @@ from .forms import (
     normalize_teacher_text,
 )
 from .models import User
+from .permissions import can_review_transfer_requests
 from .services import (
     SAMPLE_CLUB_IMPORT_CSV,
     SAMPLE_STUDENT_IMPORT_CSV,
@@ -84,6 +86,45 @@ def is_club_president_user(user, club):
     return club.president.strip() == user.username
 
 
+def get_club_president_ids(club):
+    president_ids = set(
+        User.objects.filter(club=club, role='president').values_list('pk', flat=True)
+    )
+    president = get_user_from_display_text(club.president)
+    if president:
+        president_ids.add(president.pk)
+    return president_ids
+
+
+def demote_other_club_presidents(club, new_president=None):
+    queryset = User.objects.filter(club=club, role='president')
+    if new_president:
+        queryset = queryset.exclude(pk=new_president.pk)
+    queryset.update(role='student')
+
+
+def release_club_members(club):
+    president_ids = get_club_president_ids(club)
+    if president_ids:
+        User.objects.filter(pk__in=president_ids).update(role='student', club=None)
+    User.objects.filter(club=club).update(club=None)
+    club.president = ''
+    club.current_members = 0
+    club.save(update_fields=['president', 'current_members'])
+
+
+def deactivate_club(club):
+    release_club_members(club)
+    club.is_active = False
+    club.save(update_fields=['is_active'])
+
+
+def reactivate_club(club):
+    club.is_active = True
+    club.current_members = 0
+    club.save(update_fields=['is_active', 'current_members'])
+
+
 class AccountAdminReturnMixin:
     default_success_url_name = None
 
@@ -112,8 +153,24 @@ class HomeView(TemplateView):
 
         context.update({
             'club_count': Club.objects.filter(is_active=True).count(),
-            'student_count': UserModel.objects.filter(role='student', is_active=True).count(),
+            'student_count': UserModel.objects.filter(
+                role='student',
+                is_superuser=False,
+            ).exclude(role='admin').count(),
+            'president_count': UserModel.objects.filter(
+                role='president',
+                is_superuser=False,
+            ).exclude(role='admin').count(),
+            'teacher_count': UserModel.objects.filter(
+                role='teacher',
+                is_superuser=False,
+            ).exclude(role='admin').count(),
+            'inactive_account_count': UserModel.objects.filter(
+                is_active=False,
+                is_superuser=False,
+            ).exclude(role='admin').count(),
             'pending_count': TransferRequest.objects.filter(status__in=pending_statuses).count(),
+            'can_review_transfers': can_review_transfer_requests(self.request.user),
         })
         context.update(get_transfer_window_state())
         return context
@@ -121,6 +178,23 @@ class HomeView(TemplateView):
 
 class ProfileView(LoginRequiredMixin, TemplateView):
     template_name = 'accounts/profile.html'
+
+
+class ProfilePasswordChangeView(LoginRequiredMixin, FormView):
+    template_name = 'accounts/profile_password_change.html'
+    form_class = PasswordChangeForm
+    success_url = reverse_lazy('profile')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        user = form.save()
+        update_session_auth_hash(self.request, user)
+        messages.success(self.request, '密碼已更新。')
+        return super().form_valid(form)
 
 
 class AdminProfileUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
@@ -757,7 +831,7 @@ class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = Club.objects.filter(is_active=True).order_by('code', 'name')
+        queryset = Club.objects.all().order_by('-is_active', 'code', 'name')
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(
@@ -772,6 +846,97 @@ class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['q'] = self.request.GET.get('q', '').strip()
         return context
+
+
+class ClubAdminBulkMixin:
+    def get_selected_clubs(self, request):
+        club_ids = request.POST.getlist('club_ids')
+        return Club.objects.filter(pk__in=club_ids).order_by('code', 'name')
+
+
+class ClubAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, pk):
+        with transaction.atomic():
+            club = get_object_or_404(Club.objects.select_for_update(), pk=pk)
+            deactivate_club(club)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已停用 {club.name}，並將成員移至未分配帳號。')
+        return redirect('club_admin_list')
+
+
+class ClubAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, pk):
+        with transaction.atomic():
+            club = get_object_or_404(Club.objects.select_for_update(), pk=pk)
+            reactivate_club(club)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已重新啟用 {club.name}。')
+        return redirect('club_admin_list')
+
+
+class ClubAdminBulkDeactivateView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    ClubAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        with transaction.atomic():
+            clubs = list(self.get_selected_clubs(request).select_for_update())
+            if not clubs:
+                messages.error(request, '請先選取社團。')
+                return redirect('club_admin_list')
+            for club in clubs:
+                deactivate_club(club)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已批次停用 {len(clubs)} 個社團。')
+        return redirect('club_admin_list')
+
+
+class ClubAdminBulkReactivateView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    ClubAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        with transaction.atomic():
+            clubs = list(self.get_selected_clubs(request).select_for_update())
+            if not clubs:
+                messages.error(request, '請先選取社團。')
+                return redirect('club_admin_list')
+            for club in clubs:
+                reactivate_club(club)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已批次重新啟用 {len(clubs)} 個社團。')
+        return redirect('club_admin_list')
+
+
+class ClubAdminBulkDeleteView(
+    LoginRequiredMixin,
+    AdminRequiredMixin,
+    ClubAdminBulkMixin,
+    View,
+):
+    def post(self, request):
+        with transaction.atomic():
+            clubs = list(self.get_selected_clubs(request).select_for_update())
+            if not clubs:
+                messages.error(request, '請先選取社團。')
+                return redirect('club_admin_list')
+            for club in clubs:
+                release_club_members(club)
+                club.teacher = ''
+                club.is_active = False
+                club.save(update_fields=['teacher', 'is_active'])
+            recalculate_club_current_members()
+
+        messages.warning(request, f'已批次刪除 {len(clubs)} 個社團。')
+        return redirect('club_admin_list')
 
 
 class ClubAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
@@ -839,6 +1004,7 @@ class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
             User.objects.filter(
                 pk__in=previous_president_ids,
             ).exclude(pk=new_president.pk).update(role='student', club=self.object)
+            demote_other_club_presidents(self.object, new_president)
 
             new_president.role = 'president'
             new_president.club = self.object
@@ -956,6 +1122,7 @@ class ClubAdminReplacePresidentView(LoginRequiredMixin, AdminRequiredMixin, View
                 club=club,
                 role='president',
             ).exclude(pk=new_president.pk).update(role='student')
+            demote_other_club_presidents(club, new_president)
 
             old_president.role = 'student'
             old_president.club = None
@@ -993,20 +1160,11 @@ class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         club = get_object_or_404(Club, pk=pk)
 
         with transaction.atomic():
-            president = get_user_from_display_text(club.president)
-            president_ids = list(
-                User.objects.filter(club=club, role='president').values_list('pk', flat=True)
-            )
-            if president and president.role == 'president':
-                president_ids.append(president.pk)
-
             released_count = User.objects.filter(club=club).count()
-            User.objects.filter(pk__in=president_ids).update(role='student', club=None)
-            User.objects.filter(club=club).update(club=None)
+            release_club_members(club)
             club.teacher = ''
-            club.president = ''
             club.is_active = False
-            club.save(update_fields=['teacher', 'president', 'is_active'])
+            club.save(update_fields=['teacher', 'is_active'])
             recalculate_club_current_members()
 
         messages.warning(
@@ -1297,6 +1455,7 @@ class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, V
                 previous_president.role = 'student'
                 previous_president.club = club
                 previous_president.save(update_fields=['role', 'club'])
+            demote_other_club_presidents(club, student)
 
             student.role = 'president'
             student.club = club

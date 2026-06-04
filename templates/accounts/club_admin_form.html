@@ -55,7 +55,7 @@
                                 <td>{{ member_info.user.student_id|default:"-" }}</td>
                                 <td>
                                     {% if member_info.is_president %}
-                                        <span class="badge bg-primary">社長</span>
+                                        <span class="badge role-badge-president">社長</span>
                                     {% else %}
                                         <span class="badge bg-secondary">社員</span>
                                     {% endif %}

@@ -106,10 +106,8 @@
                     </td>
                     <td>{{ account.first_name|default:account.username }}</td>
                     <td>
-                        {% if account.role == 'student' or account.role == 'president' %}
-                            <span class="badge bg-primary">{{ account|display_role }}</span>
-                        {% elif account.role == 'teacher' %}
-                            <span class="badge bg-info text-dark">指導老師</span>
+                        {% if account.role == 'student' or account.role == 'president' or account.role == 'teacher' %}
+                            <span class="badge {{ account|role_badge_class }}">{{ account|display_role }}</span>
                         {% else %}
                             {{ account|display_role }}
                         {% endif %}

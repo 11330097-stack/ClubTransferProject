@@ -1,5 +1,6 @@
 from django import template
 
+from accounts.permissions import can_review_transfer_requests
 from transfers.models import get_user_from_display_text
 
 
@@ -27,3 +28,21 @@ def display_role(user):
 @register.simple_tag
 def is_club_president(user, club):
     return user_is_club_president(user, club)
+
+
+@register.filter
+def can_review_transfers(user):
+    return can_review_transfer_requests(user)
+
+
+@register.filter
+def role_badge_class(user):
+    role = getattr(user, 'role', None)
+    displayed_role = display_role(user)
+    if role == 'president' and displayed_role == user.get_role_display():
+        return 'role-badge-president'
+    if role == 'teacher':
+        return 'role-badge-teacher'
+    if role == 'admin' or getattr(user, 'is_superuser', False):
+        return 'role-badge-admin'
+    return 'role-badge-student'

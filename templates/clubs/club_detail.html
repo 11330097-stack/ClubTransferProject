@@ -74,7 +74,7 @@
                             {{ member.get_full_name|default:member.username }}
                             {% is_club_president member club as member_is_president %}
                             {% if member_is_president %}
-                                <span class="badge bg-primary">社長</span>
+                                <span class="badge role-badge-president">社長</span>
                             {% endif %}
                         </li>
                     {% empty %}

@@ -28,7 +28,7 @@
                     {% endif %}
                     <tr>
                         <td class="text-muted">身分組</td>
-                        <td><span class="badge bg-info">{{ user|display_role }}</span></td>
+                        <td><span class="badge {{ user|role_badge_class }}">{{ user|display_role }}</span></td>
                     </tr>
                     {% if not user.is_superuser and user.role != 'admin' %}
                         <tr>
@@ -52,6 +52,7 @@
                 {% if user.is_superuser or user.role == 'admin' %}
                     <a href="{% url 'admin_profile_edit' %}" class="btn btn-primary">編輯個人資料</a>
                 {% endif %}
+                <a href="{% url 'profile_password_change' %}" class="btn btn-outline-primary">修改密碼</a>
                 <a href="{% url 'home' %}" class="btn btn-secondary">返回首頁</a>
             </div>
         </div>

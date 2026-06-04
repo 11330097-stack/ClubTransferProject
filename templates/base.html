@@ -40,6 +40,26 @@
         .progress-step.completed .badge { background-color: #198754; }
         .progress-step.active .badge { background-color: #4891ff; }
         .progress-step.pending .badge { background-color: #6c757d; }
+        .role-badge-student {
+            background-color: #0d6efd;
+            color: #fff;
+            border: 1px solid #0d6efd;
+        }
+        .role-badge-president {
+            background-color: #0dcaf0;
+            color: #fff;
+            border: 1px solid #0dcaf0;
+        }
+        .role-badge-teacher {
+            background-color: #212529;
+            color: #fff;
+            border: 1px solid #212529;
+        }
+        .role-badge-admin {
+            background-color: #6c757d;
+            color: #fff;
+            border: 1px solid #6c757d;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -69,7 +89,7 @@
                                 <a class="nav-link" href="{% url 'my_requests' %}">我的申請</a>
                             </li>
                         {% endif %}
-                        {% if user.is_superuser or user.role == 'president' or user.role == 'teacher' or user.role == 'admin' %}
+                        {% if user|can_review_transfers %}
                             <li class="nav-item">
                                 <a class="nav-link position-relative" href="{% url 'pending_approvals' %}">
                                     待審核申請
