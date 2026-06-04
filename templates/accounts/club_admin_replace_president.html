@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}選擇新社長{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">選擇新社長</h1>
+
+<div class="card card-body">
+    <p class="mb-3">
+        要將 {{ old_president.first_name|default:old_president.username }} 移至未分配帳號前，請先為 {{ club.name }} 選擇新社長。
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="new_president_id" class="form-label">新社長</label>
+            <select name="new_president_id" id="new_president_id" class="form-select" required>
+                <option value="">請選擇新社長</option>
+                {% for candidate in candidates %}
+                    <option value="{{ candidate.pk }}">
+                        {{ candidate.first_name|default:candidate.username }}{% if candidate.student_id %}（{{ candidate.student_id }}）{% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">確認更換並移除原社長</button>
+        <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-outline-secondary">取消</a>
+    </form>
+</div>
+{% endblock %}

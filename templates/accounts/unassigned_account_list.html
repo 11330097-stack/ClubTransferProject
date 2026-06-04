@@ -20,10 +20,39 @@
     {% endif %}
 </form>
 
+<form id="unassigned-bulk-form" method="post" action="{% url 'unassigned_student_bulk_assign_club' %}">
+    {% csrf_token %}
+</form>
+
+<div class="card card-body mb-3">
+    <div class="row g-2 align-items-center">
+        <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-unassigned">全選</button>
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-unassigned">取消全選</button>
+        </div>
+        <div class="col-sm-6 col-md-4">
+            <select name="club_id" class="form-select form-select-sm" form="unassigned-bulk-form">
+                <option value="">選擇社團</option>
+                {% for club in active_clubs %}
+                    <option value="{{ club.pk }}">{{ club.name }}（{{ club.current_members }}/{{ club.max_members }}）</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary btn-sm" form="unassigned-bulk-form" {% if not active_clubs %}disabled{% endif %}>批次分配</button>
+        </div>
+    </div>
+</div>
+
 <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
         <thead>
             <tr>
+                <th>
+                    <input type="checkbox" class="form-check-input" id="toggle-all-unassigned" aria-label="全選未分配學生">
+                </th>
                 <th>姓名</th>
                 <th>身分</th>
                 <th>Email</th>
@@ -36,6 +65,11 @@
         <tbody>
             {% for account in accounts %}
                 <tr>
+                    <td>
+                        {% if account.role == 'student' %}
+                            <input type="checkbox" class="form-check-input unassigned-student-checkbox" name="student_ids" value="{{ account.pk }}" form="unassigned-bulk-form" aria-label="選取 {{ account.username }}">
+                        {% endif %}
+                    </td>
                     <td>{{ account.first_name|default:"-" }}</td>
                     <td>
                         {% if account.role == 'student' or account.role == 'president' %}
@@ -69,7 +103,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted">沒有未分配帳號。</td>
+                    <td colspan="8" class="text-center text-muted">沒有未分配帳號。</td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -89,4 +123,46 @@
         </ul>
     </nav>
 {% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const checkboxes = Array.from(document.querySelectorAll('.unassigned-student-checkbox'));
+    const toggleAll = document.getElementById('toggle-all-unassigned');
+
+    function setAll(checked) {
+        checkboxes.forEach(function (checkbox) {
+            checkbox.checked = checked;
+        });
+        if (toggleAll) {
+            toggleAll.checked = checked;
+            toggleAll.indeterminate = false;
+        }
+    }
+
+    function updateToggleAll() {
+        if (!toggleAll) {
+            return;
+        }
+        const checkedCount = checkboxes.filter(function (checkbox) {
+            return checkbox.checked;
+        }).length;
+        toggleAll.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+        toggleAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+
+    if (toggleAll) {
+        toggleAll.addEventListener('change', function () {
+            setAll(toggleAll.checked);
+        });
+    }
+    document.getElementById('select-all-unassigned').addEventListener('click', function () {
+        setAll(true);
+    });
+    document.getElementById('clear-all-unassigned').addEventListener('click', function () {
+        setAll(false);
+    });
+    checkboxes.forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateToggleAll);
+    });
+});
+</script>
 {% endblock %}

@@ -70,6 +70,20 @@ def admin_operation_return_url(request, default_url_name):
     return reverse(default_url_name)
 
 
+def format_club_user_display_text(user):
+    display_name = user.get_full_name() or user.first_name or user.username
+    return f'{display_name} ({user.username})'
+
+
+def is_club_president_user(user, club):
+    if not user or not club or not club.president:
+        return False
+    president = get_user_from_display_text(club.president)
+    if president:
+        return president.pk == user.pk
+    return club.president.strip() == user.username
+
+
 class AccountAdminReturnMixin:
     default_success_url_name = None
 
@@ -357,6 +371,13 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['q'] = self.request.GET.get('q', '').strip()
         context['selected_role'] = self.request.GET.get('role', '').strip()
+        non_admin_accounts = User.objects.filter(is_superuser=False).exclude(role='admin')
+        context['account_stats'] = {
+            'president_count': non_admin_accounts.filter(role='president').count(),
+            'student_count': non_admin_accounts.filter(role='student').count(),
+            'teacher_count': non_admin_accounts.filter(role='teacher').count(),
+            'inactive_count': non_admin_accounts.filter(is_active=False).count(),
+        }
         context['role_options'] = [
             ('', '全部'),
             ('student', '學生'),
@@ -559,6 +580,45 @@ class UnassignedStudentAssignClubView(LoginRequiredMixin, AdminRequiredMixin, Vi
         return redirect('unassigned_account_list')
 
 
+class UnassignedStudentBulkAssignClubView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request):
+        student_ids = request.POST.getlist('student_ids')
+        club_id = request.POST.get('club_id')
+
+        if not student_ids:
+            messages.error(request, '請先選取學生。')
+            return redirect('unassigned_account_list')
+
+        if not club_id:
+            messages.error(request, '請先選擇社團。')
+            return redirect('unassigned_account_list')
+
+        with transaction.atomic():
+            club = get_object_or_404(Club.objects.select_for_update(), pk=club_id, is_active=True)
+            students = list(
+                User.objects.select_for_update().filter(
+                    pk__in=student_ids,
+                    role='student',
+                    is_active=True,
+                    club__isnull=True,
+                )
+            )
+
+            if not students:
+                messages.error(request, '請先選取學生。')
+                return redirect('unassigned_account_list')
+
+            if club.current_members + len(students) > club.max_members:
+                messages.warning(request, '超過社團人數上限')
+                return redirect('unassigned_account_list')
+
+            User.objects.filter(pk__in=[student.pk for student in students]).update(club=club)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已將 {len(students)} 位學生分配到 {club.name}。')
+        return redirect('unassigned_account_list')
+
+
 class TeacherAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     model = User
     template_name = 'accounts/teacher_admin_list.html'
@@ -739,6 +799,30 @@ class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
     template_name = 'accounts/club_admin_form.html'
     success_url = reverse_lazy('club_admin_list')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        members = list(
+            User.objects.filter(
+                club=self.object,
+                role__in=['student', 'president'],
+                is_active=True,
+            ).order_by('role', 'username')
+        )
+        context['club_members'] = [
+            {
+                'user': member,
+                'is_president': is_club_president_user(member, self.object),
+            }
+            for member in sorted(
+                members,
+                key=lambda member: (
+                    0 if is_club_president_user(member, self.object) else 1,
+                    member.first_name or member.username,
+                ),
+            )
+        ]
+        return context
+
     def form_valid(self, form):
         previous_president_text = Club.objects.only('president').get(pk=self.object.pk).president
         previous_president = get_user_from_display_text(previous_president_text)
@@ -763,6 +847,130 @@ class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
 
         messages.success(self.request, '社團資料已更新。')
         return redirect(self.get_success_url())
+
+
+class ClubAdminMemberUnassignView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request, club_pk, user_pk):
+        with transaction.atomic():
+            club = get_object_or_404(Club.objects.select_for_update(), pk=club_pk)
+            member = get_object_or_404(
+                User.objects.select_for_update(),
+                pk=user_pk,
+                club=club,
+                role__in=['student', 'president'],
+            )
+
+            if is_club_president_user(member, club):
+                remaining_members = User.objects.filter(
+                    club=club,
+                    role__in=['student', 'president'],
+                    is_active=True,
+                ).exclude(pk=member.pk)
+
+                if not remaining_members.exists():
+                    messages.error(request, '社團至少需要一位社長，請先加入其他成員後再移除')
+                    return redirect('club_admin_edit', pk=club.pk)
+
+                return redirect(
+                    'club_admin_replace_president',
+                    club_pk=club.pk,
+                    user_pk=member.pk,
+                )
+
+            member.club = None
+            update_fields = ['club']
+            if member.role == 'president':
+                member.role = 'student'
+                update_fields.append('role')
+            member.save(update_fields=update_fields)
+            recalculate_club_current_members()
+
+        messages.success(request, f'已將 {member.username} 移至未分配帳號。')
+        return redirect('club_admin_edit', pk=club_pk)
+
+
+class ClubAdminReplacePresidentView(LoginRequiredMixin, AdminRequiredMixin, View):
+    template_name = 'accounts/club_admin_replace_president.html'
+
+    def get_candidates(self, club, old_president):
+        return User.objects.filter(
+            club=club,
+            role__in=['student', 'president'],
+            is_active=True,
+        ).exclude(pk=old_president.pk).order_by('username')
+
+    def get(self, request, club_pk, user_pk):
+        club = get_object_or_404(Club, pk=club_pk)
+        old_president = get_object_or_404(
+            User,
+            pk=user_pk,
+            club=club,
+            role__in=['student', 'president'],
+        )
+
+        if not is_club_president_user(old_president, club):
+            messages.error(request, '該成員不是目前社長。')
+            return redirect('club_admin_edit', pk=club.pk)
+
+        candidates = self.get_candidates(club, old_president)
+        if not candidates.exists():
+            messages.error(request, '社團至少需要一位社長，請先加入其他成員後再移除')
+            return redirect('club_admin_edit', pk=club.pk)
+
+        return render(
+            request,
+            self.template_name,
+            {
+                'club': club,
+                'old_president': old_president,
+                'candidates': candidates,
+            },
+        )
+
+    def post(self, request, club_pk, user_pk):
+        new_president_id = request.POST.get('new_president_id')
+        if not new_president_id:
+            messages.error(request, '請選擇新社長。')
+            return redirect('club_admin_replace_president', club_pk=club_pk, user_pk=user_pk)
+
+        with transaction.atomic():
+            club = get_object_or_404(Club.objects.select_for_update(), pk=club_pk)
+            old_president = get_object_or_404(
+                User.objects.select_for_update(),
+                pk=user_pk,
+                club=club,
+                role__in=['student', 'president'],
+            )
+
+            if not is_club_president_user(old_president, club):
+                messages.error(request, '該成員不是目前社長。')
+                return redirect('club_admin_edit', pk=club.pk)
+
+            candidates = self.get_candidates(club, old_president)
+            new_president = get_object_or_404(
+                candidates.select_for_update(),
+                pk=new_president_id,
+            )
+
+            User.objects.filter(
+                club=club,
+                role='president',
+            ).exclude(pk=new_president.pk).update(role='student')
+
+            old_president.role = 'student'
+            old_president.club = None
+            old_president.save(update_fields=['role', 'club'])
+
+            new_president.role = 'president'
+            new_president.club = club
+            new_president.save(update_fields=['role', 'club'])
+
+            club.president = format_club_user_display_text(new_president)
+            club.save(update_fields=['president'])
+            recalculate_club_current_members()
+
+        messages.success(request, f'已改由 {new_president.username} 擔任社長，並將原社長移至未分配帳號。')
+        return redirect('club_admin_edit', pk=club_pk)
 
 
 class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):

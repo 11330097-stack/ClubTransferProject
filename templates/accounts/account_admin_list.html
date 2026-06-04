@@ -12,6 +12,41 @@
     </div>
 </div>
 
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3 mb-3">
+    <div class="col">
+        <div class="card h-100">
+            <div class="card-body py-3">
+                <div class="text-muted small">社長總數</div>
+                <div class="h4 mb-0">{{ account_stats.president_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100">
+            <div class="card-body py-3">
+                <div class="text-muted small">學生總數</div>
+                <div class="h4 mb-0">{{ account_stats.student_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100">
+            <div class="card-body py-3">
+                <div class="text-muted small">指導老師總數</div>
+                <div class="h4 mb-0">{{ account_stats.teacher_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card h-100">
+            <div class="card-body py-3">
+                <div class="text-muted small">停用帳號總數</div>
+                <div class="h4 mb-0">{{ account_stats.inactive_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <form method="get" class="row g-2 mb-3" id="account-filter-form">
     <div class="col-sm-6 col-md-4">
         <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋姓名、Email 或學號">

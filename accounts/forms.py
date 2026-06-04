@@ -276,9 +276,7 @@ class ClubAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        is_create = not self.instance.pk
-        if is_create:
-            self.fields.pop('code', None)
+        self.fields.pop('code', None)
 
         current_teacher = get_user_from_display_text(self.instance.teacher)
         current_president = get_user_from_display_text(self.instance.president)
