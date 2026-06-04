@@ -57,10 +57,13 @@ class StudentAccountForm(forms.ModelForm):
         self.is_create = kwargs.pop('is_create', False)
         super().__init__(*args, **kwargs)
         self.original_password = self.instance.password
-        self.fields['role'].choices = [('student', 'student')]
-        self.fields['role'].initial = 'student'
+        self.original_role = self.instance.role
         if self.instance.pk and self.instance.role == 'president':
-            self.fields['role'].help_text = '儲存後會將此社長降級為一般學生。'
+            self.fields['role'].choices = [('president', 'president')]
+            self.fields['role'].initial = 'president'
+        else:
+            self.fields['role'].choices = [('student', 'student')]
+            self.fields['role'].initial = 'student'
         self.fields['password'].required = self.is_create
 
     def clean_username(self):
@@ -85,7 +88,10 @@ class StudentAccountForm(forms.ModelForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.role = 'student'
+        if not self.is_create and self.instance.pk:
+            user.role = self.original_role
+        else:
+            user.role = 'student'
         password = self.cleaned_data.get('password')
         if password:
             user.set_password(password)
@@ -162,4 +168,8 @@ class ClubAdminForm(forms.ModelForm):
 
 
 class StudentCsvImportForm(forms.Form):
+    csv_file = forms.FileField(label='CSV 檔案')
+
+
+class ClubCsvImportForm(forms.Form):
     csv_file = forms.FileField(label='CSV 檔案')

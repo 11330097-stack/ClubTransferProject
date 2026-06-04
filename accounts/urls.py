@@ -16,6 +16,7 @@ urlpatterns = [
     path('admin-panel/unassigned/students/<int:pk>/assign-club/', views.UnassignedStudentAssignClubView.as_view(), name='unassigned_student_assign_club'),
     path('admin-panel/clubs/', views.ClubAdminListView.as_view(), name='club_admin_list'),
     path('admin-panel/clubs/create/', views.ClubAdminCreateView.as_view(), name='club_admin_create'),
+    path('admin-panel/clubs/import/', views.ClubCsvImportView.as_view(), name='club_admin_import'),
     path('admin-panel/clubs/<int:pk>/edit/', views.ClubAdminUpdateView.as_view(), name='club_admin_edit'),
     path('admin-panel/clubs/<int:pk>/delete/', views.ClubAdminDeleteView.as_view(), name='club_admin_delete'),
     path('admin-panel/students/', views.StudentAdminListView.as_view(), name='student_admin_list'),

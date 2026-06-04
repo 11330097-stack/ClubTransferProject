@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}批次刪除學生帳號{% endblock %}
+{% block title %}批次刪除學生/社長帳號{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">批次刪除學生帳號</h1>
+<h1 class="h3 mb-3">批次刪除學生/社長帳號</h1>
 
 <div class="alert alert-danger">
-    <p class="mb-2">請確認是否要安全刪除以下 {{ students|length }} 位學生。</p>
+    <p class="mb-2">請確認是否要安全刪除以下 {{ students|length }} 位學生/社長。</p>
     <p class="mb-0">
-        有轉社申請或審核紀錄的學生只會被停用，不會真正刪除；
-        沒有任何歷史紀錄的學生帳號才會被刪除。
+        有轉社申請或審核紀錄的學生/社長只會被停用，不會真正刪除；
+        沒有任何歷史紀錄的學生/社長帳號才會被刪除。
     </p>
 </div>
 

@@ -1,3 +1,4 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import NoReverseMatch, reverse
 
@@ -6,6 +7,14 @@ from transfers.models import ApprovalLog, TransferRequest
 
 from .forms import ClubAdminForm
 from .models import User
+
+
+def csv_upload(content):
+    return SimpleUploadedFile(
+        'import.csv',
+        content.encode('utf-8'),
+        content_type='text/csv',
+    )
 
 
 class ClubAdminDeleteViewTests(TestCase):
@@ -132,6 +141,139 @@ class ClubAdminDeleteViewTests(TestCase):
 
         response = self.client.get(reverse('unassigned_account_list'))
         self.assertIn(president, list(response.context['accounts']))
+
+
+class ClubCsvImportViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='club-import-admin',
+            password='password',
+            role='admin',
+        )
+        self.teacher = User.objects.create_user(
+            username='teacher-import',
+            first_name='Teacher Import',
+            role='teacher',
+            is_active=True,
+        )
+        self.student = User.objects.create_user(
+            username='student-import',
+            first_name='Student Import',
+            role='student',
+            is_active=True,
+            club=None,
+        )
+
+    def test_club_admin_list_links_to_import(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse('club_admin_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('club_admin_import'))
+        self.assertContains(response, '匯入社團 CSV')
+
+    def test_non_admin_cannot_import_clubs(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse('club_admin_import'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_import_creates_club_and_assigns_teacher_and_president(self):
+        self.client.force_login(self.admin)
+        content = (
+            'code,name,teacher_username,president_username,location,max_members,description\n'
+            'C001,CSV Club,teacher-import,student-import,Room 1,35,Imported club\n'
+        )
+
+        response = self.client.post(
+            reverse('club_admin_import'),
+            {'csv_file': csv_upload(content)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.context['result']
+        self.assertEqual(result['created'], 1)
+        self.assertEqual(result['updated'], 0)
+        self.assertEqual(result['skipped'], 0)
+
+        club = Club.objects.get(code='C001')
+        self.student.refresh_from_db()
+        self.assertEqual(club.name, 'CSV Club')
+        self.assertEqual(club.teacher, 'Teacher Import (teacher-import)')
+        self.assertEqual(club.president, 'Student Import (student-import)')
+        self.assertEqual(club.location, 'Room 1')
+        self.assertEqual(club.max_members, 35)
+        self.assertEqual(club.description, 'Imported club')
+        self.assertEqual(club.current_members, 1)
+        self.assertEqual(self.student.role, 'president')
+        self.assertEqual(self.student.club, club)
+
+    def test_import_updates_existing_club_and_replaces_president(self):
+        self.client.force_login(self.admin)
+        club = Club.objects.create(
+            code='C002',
+            name='Old Club',
+            president='Old President (old-president)',
+        )
+        old_president = User.objects.create_user(
+            username='old-president',
+            first_name='Old President',
+            role='president',
+            is_active=True,
+            club=club,
+        )
+        content = (
+            'code,name,teacher_username,president_username,location,max_members\n'
+            'C002,Updated Club,,student-import,Room 2,20\n'
+        )
+
+        response = self.client.post(
+            reverse('club_admin_import'),
+            {'csv_file': csv_upload(content)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.context['result']
+        self.assertEqual(result['created'], 0)
+        self.assertEqual(result['updated'], 1)
+
+        club.refresh_from_db()
+        old_president.refresh_from_db()
+        self.student.refresh_from_db()
+        self.assertEqual(club.name, 'Updated Club')
+        self.assertEqual(club.teacher, '')
+        self.assertEqual(club.president, 'Student Import (student-import)')
+        self.assertEqual(old_president.role, 'student')
+        self.assertEqual(old_president.club, club)
+        self.assertEqual(self.student.role, 'president')
+        self.assertEqual(self.student.club, club)
+        self.assertEqual(club.current_members, 2)
+
+    def test_import_skips_invalid_rows_and_reports_errors(self):
+        self.client.force_login(self.admin)
+        content = (
+            'code,name,teacher_username,president_username,location,max_members\n'
+            'C003,Valid Club,,,Room 3,10\n'
+            ',Missing Code,,,Room 4,10\n'
+            'C004,Bad Max,,,Room 5,0\n'
+        )
+
+        response = self.client.post(
+            reverse('club_admin_import'),
+            {'csv_file': csv_upload(content)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.context['result']
+        self.assertEqual(result['created'], 1)
+        self.assertEqual(result['skipped'], 2)
+        self.assertEqual(len(result['errors']), 2)
+        self.assertTrue(Club.objects.filter(code='C003').exists())
+        self.assertFalse(Club.objects.filter(code='C004').exists())
+        self.assertContains(response, 'code is required.')
+        self.assertContains(response, 'max_members must be a positive integer.')
 
 
 class UnassignedStudentAssignClubViewTests(TestCase):
@@ -325,6 +467,13 @@ class StudentAdminBulkActionTests(TestCase):
             role='student',
             club=self.club,
         )
+        self.president = User.objects.create_user(
+            username='bulk-president',
+            role='president',
+            club=self.club,
+        )
+        self.club.president = 'Bulk President (bulk-president)'
+        self.club.save(update_fields=['president'])
         self.teacher = User.objects.create_user(
             username='teacher',
             role='teacher',
@@ -332,39 +481,71 @@ class StudentAdminBulkActionTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-    def test_bulk_deactivate_and_reactivate_students_only(self):
-        self.club.current_members = 2
+    def test_student_admin_list_president_has_bulk_checkbox(self):
+        response = self.client.get(reverse('student_admin_list'), {'q': self.president.username})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'value="{self.president.pk}"')
+        self.assertContains(response, 'student-checkbox')
+
+    def test_bulk_deactivate_and_reactivate_students_and_presidents_only(self):
+        self.club.current_members = 3
         self.club.save(update_fields=['current_members'])
 
         response = self.client.post(
             reverse('student_admin_bulk_deactivate'),
-            {'student_ids': [self.student_one.pk, self.student_two.pk, self.teacher.pk]},
+            {
+                'student_ids': [
+                    self.student_one.pk,
+                    self.student_two.pk,
+                    self.president.pk,
+                    self.teacher.pk,
+                    self.admin.pk,
+                ],
+            },
         )
 
         self.assertRedirects(response, reverse('student_admin_list'))
         self.student_one.refresh_from_db()
         self.student_two.refresh_from_db()
+        self.president.refresh_from_db()
         self.teacher.refresh_from_db()
+        self.admin.refresh_from_db()
         self.club.refresh_from_db()
         self.assertFalse(self.student_one.is_active)
         self.assertFalse(self.student_two.is_active)
+        self.assertFalse(self.president.is_active)
         self.assertTrue(self.teacher.is_active)
+        self.assertTrue(self.admin.is_active)
+        self.assertEqual(self.club.president, '')
         self.assertEqual(self.club.current_members, 0)
 
         response = self.client.post(
             reverse('student_admin_bulk_reactivate'),
-            {'student_ids': [self.student_one.pk, self.student_two.pk, self.teacher.pk]},
+            {
+                'student_ids': [
+                    self.student_one.pk,
+                    self.student_two.pk,
+                    self.president.pk,
+                    self.teacher.pk,
+                    self.admin.pk,
+                ],
+            },
         )
 
         self.assertRedirects(response, reverse('student_admin_list'))
         self.student_one.refresh_from_db()
         self.student_two.refresh_from_db()
+        self.president.refresh_from_db()
         self.teacher.refresh_from_db()
+        self.admin.refresh_from_db()
         self.club.refresh_from_db()
         self.assertTrue(self.student_one.is_active)
         self.assertTrue(self.student_two.is_active)
+        self.assertTrue(self.president.is_active)
         self.assertTrue(self.teacher.is_active)
-        self.assertEqual(self.club.current_members, 2)
+        self.assertTrue(self.admin.is_active)
+        self.assertEqual(self.club.current_members, 3)
 
     def test_bulk_delete_deletes_students_without_history_and_deactivates_history(self):
         student_without_history = User.objects.create_user(
@@ -383,7 +564,7 @@ class StudentAdminBulkActionTests(TestCase):
             approval_stage='orig_teacher_pending',
             result='approve',
         )
-        self.club.current_members = 3
+        self.club.current_members = 4
         self.club.save(update_fields=['current_members'])
 
         response = self.client.post(
@@ -407,19 +588,65 @@ class StudentAdminBulkActionTests(TestCase):
         self.assertFalse(self.student_one.is_active)
         self.assertFalse(self.student_two.is_active)
         self.assertTrue(self.teacher.is_active)
-        self.assertEqual(self.club.current_members, 0)
+        self.assertEqual(self.club.current_members, 1)
 
-    def test_bulk_delete_confirm_lists_students_only(self):
+    def test_bulk_delete_deletes_president_without_history_and_clears_club_president(self):
+        self.club.current_members = 3
+        self.club.save(update_fields=['current_members'])
+
+        response = self.client.post(
+            reverse('student_admin_bulk_delete'),
+            {'student_ids': [self.president.pk]},
+        )
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.assertFalse(User.objects.filter(pk=self.president.pk).exists())
+        self.club.refresh_from_db()
+        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.club.current_members, 2)
+
+    def test_bulk_delete_deactivates_president_with_history_and_clears_club_president(self):
+        transfer_request = TransferRequest.objects.create(
+            student=self.president,
+            original_club=self.club,
+            target_club=self.other_club,
+        )
+        ApprovalLog.objects.create(
+            transfer_request=transfer_request,
+            approver=self.admin,
+            approval_stage='admin_pending',
+            result='approve',
+        )
+        self.club.current_members = 3
+        self.club.save(update_fields=['current_members'])
+
+        response = self.client.post(
+            reverse('student_admin_bulk_delete'),
+            {'student_ids': [self.president.pk]},
+        )
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.president.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.president.is_active)
+        self.assertEqual(self.president.role, 'president')
+        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.club.current_members, 2)
+
+    def test_bulk_delete_confirm_lists_students_and_presidents_only(self):
         response = self.client.post(
             reverse('student_admin_bulk_delete_confirm'),
-            {'student_ids': [self.student_one.pk, self.teacher.pk]},
+            {'student_ids': [self.student_one.pk, self.president.pk, self.teacher.pk, self.admin.pk]},
         )
 
         self.assertEqual(response.status_code, 200)
         students = list(response.context['students'])
-        self.assertEqual(students, [self.student_one])
+        self.assertEqual(students, [self.president, self.student_one])
         self.assertContains(response, self.student_one.username)
+        self.assertContains(response, self.president.username)
         self.assertNotContains(response, self.teacher.username)
+        self.assertNotIn(self.teacher, students)
+        self.assertNotIn(self.admin, students)
 
     def test_non_admin_cannot_use_bulk_actions(self):
         self.client.force_login(self.student_one)
@@ -466,9 +693,12 @@ class StudentAdminPresidentManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.president.username)
         self.assertContains(response, '社長')
-        self.assertContains(response, '降級為一般學生')
+        self.assertContains(response, '編輯')
+        self.assertContains(response, '停用')
+        self.assertContains(response, '刪除')
+        self.assertNotContains(response, '降級為一般學生')
 
-    def test_editing_president_demotes_and_clears_club_president(self):
+    def test_editing_president_keeps_president_role_and_club_president(self):
         response = self.client.post(
             reverse('student_admin_edit', args=[self.president.pk]),
             {
@@ -478,7 +708,7 @@ class StudentAdminPresidentManagementTests(TestCase):
                 'seat_number': '',
                 'first_name': self.president.first_name,
                 'email': '',
-                'role': 'student',
+                'role': 'president',
                 'club': self.club.pk,
                 'is_active': 'on',
                 'password': '',
@@ -488,6 +718,50 @@ class StudentAdminPresidentManagementTests(TestCase):
         self.assertRedirects(response, reverse('student_admin_list'))
         self.president.refresh_from_db()
         self.club.refresh_from_db()
-        self.assertEqual(self.president.role, 'student')
-        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.president.role, 'president')
+        self.assertEqual(self.club.president, 'President User (president-user)')
         self.assertEqual(self.club.current_members, 1)
+
+    def test_deactivating_president_clears_club_president(self):
+        response = self.client.post(reverse('student_admin_deactivate', args=[self.president.pk]))
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.president.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.president.is_active)
+        self.assertEqual(self.president.role, 'president')
+        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.club.current_members, 0)
+
+    def test_deleting_president_without_history_deletes_and_clears_club_president(self):
+        response = self.client.post(reverse('student_admin_delete', args=[self.president.pk]))
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.assertFalse(User.objects.filter(pk=self.president.pk).exists())
+        self.club.refresh_from_db()
+        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.club.current_members, 0)
+
+    def test_deleting_president_with_history_deactivates_and_clears_club_president(self):
+        other_club = Club.objects.create(code='P002', name='Other President Club')
+        transfer_request = TransferRequest.objects.create(
+            student=self.president,
+            original_club=self.club,
+            target_club=other_club,
+        )
+        ApprovalLog.objects.create(
+            transfer_request=transfer_request,
+            approver=self.admin,
+            approval_stage='admin_pending',
+            result='approve',
+        )
+
+        response = self.client.post(reverse('student_admin_delete', args=[self.president.pk]))
+
+        self.assertRedirects(response, reverse('student_admin_list'))
+        self.president.refresh_from_db()
+        self.club.refresh_from_db()
+        self.assertFalse(self.president.is_active)
+        self.assertEqual(self.president.role, 'president')
+        self.assertEqual(self.club.president, '')
+        self.assertEqual(self.club.current_members, 0)

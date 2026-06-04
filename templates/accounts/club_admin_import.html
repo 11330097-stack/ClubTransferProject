@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}匯入社團 CSV{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">匯入社團 CSV</h1>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'club_admin_list' %}">返回社團管理</a>
+</div>
+
+<div class="alert alert-info">
+    <p class="mb-2">CSV 欄位：code,name,teacher_username,president_username,location,max_members</p>
+    <p class="mb-0">description 可選；如果沒有提供會留空。category 不需要匯入。</p>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="mb-4">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">匯入</button>
+</form>
+
+<h2 class="h5">CSV 範例</h2>
+<pre class="bg-light border rounded p-3"><code>{{ sample_csv }}</code></pre>
+
+{% if result %}
+    <div class="card mb-3">
+        <div class="card-header">匯入結果</div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-2">新增</dt>
+                <dd class="col-sm-10">{{ result.created }}</dd>
+                <dt class="col-sm-2">更新</dt>
+                <dd class="col-sm-10">{{ result.updated }}</dd>
+                <dt class="col-sm-2">跳過</dt>
+                <dd class="col-sm-10">{{ result.skipped }}</dd>
+            </dl>
+        </div>
+    </div>
+
+    {% if result.errors %}
+        <h2 class="h5">錯誤列</h2>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>列號</th>
+                        <th>原因</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for error in result.errors %}
+                        <tr>
+                            <td>{{ error.row }}</td>
+                            <td>{{ error.reason }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}

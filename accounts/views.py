@@ -12,6 +12,7 @@ from transfers.models import get_user_from_display_text
 from transfers.models import TransferRequest
 from .forms import (
     ClubAdminForm,
+    ClubCsvImportForm,
     StudentAccountForm,
     StudentCsvImportForm,
     get_teacher_match_values,
@@ -19,7 +20,10 @@ from .forms import (
 )
 from .models import User
 from .services import (
+    SAMPLE_CLUB_IMPORT_CSV,
     SAMPLE_STUDENT_IMPORT_CSV,
+    deactivate_student,
+    import_clubs_from_csv,
     import_students_from_csv,
     recalculate_club_current_members,
     safely_delete_student,
@@ -249,6 +253,22 @@ class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         ).order_by('role', 'username')
 
 
+class ClubCsvImportView(LoginRequiredMixin, AdminRequiredMixin, FormView):
+    template_name = 'accounts/club_admin_import.html'
+    form_class = ClubCsvImportForm
+    success_url = reverse_lazy('club_admin_import')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['sample_csv'] = SAMPLE_CLUB_IMPORT_CSV
+        context['result'] = getattr(self, 'result', None)
+        return context
+
+    def form_valid(self, form):
+        self.result = import_clubs_from_csv(form.cleaned_data['csv_file'])
+        return self.render_to_response(self.get_context_data(form=form))
+
+
 class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     model = User
     template_name = 'accounts/student_admin_list.html'
@@ -307,22 +327,11 @@ class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView)
         return kwargs
 
     def form_valid(self, form):
-        original_user = User.objects.only('role', 'username').get(pk=self.object.pk)
-        was_president = original_user.role == 'president'
-        username_marker = f'({original_user.username})'
-
         with transaction.atomic():
             response = super().form_valid(form)
-            if was_president:
-                Club.objects.filter(
-                    president__icontains=username_marker,
-                ).update(president='')
             recalculate_club_current_members()
 
-        if was_president:
-            messages.success(self.request, '社長已降級為一般學生，社團社長欄位已清空。')
-        else:
-            messages.success(self.request, '學生資料已更新。')
+        messages.success(self.request, '學生資料已更新。')
         return response
 
 
@@ -330,21 +339,21 @@ class StudentAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
     template_name = 'accounts/student_admin_confirm_deactivate.html'
 
     def get(self, request, pk):
-        student = get_object_or_404(User, pk=pk, role='student')
+        student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
         return render(request, self.template_name, {'student': student})
 
     def post(self, request, pk):
-        student = get_object_or_404(User, pk=pk, role='student')
-        student.is_active = False
-        student.save(update_fields=['is_active'])
-        recalculate_club_current_members()
+        student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
+        with transaction.atomic():
+            deactivate_student(student)
+            recalculate_club_current_members()
         messages.success(request, '學生帳號已停用。')
         return redirect('student_admin_list')
 
 
 class StudentAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
     def post(self, request, pk):
-        student = get_object_or_404(User, pk=pk, role='student')
+        student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
         student.is_active = True
         student.save(update_fields=['is_active'])
         recalculate_club_current_members()
@@ -355,7 +364,10 @@ class StudentAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
 class StudentAdminBulkMixin:
     def get_selected_students(self, request):
         student_ids = request.POST.getlist('student_ids')
-        return User.objects.filter(pk__in=student_ids, role='student').order_by('username')
+        return User.objects.filter(
+            pk__in=student_ids,
+            role__in=['student', 'president'],
+        ).order_by('username')
 
 
 class StudentAdminBulkDeactivateView(
@@ -367,7 +379,10 @@ class StudentAdminBulkDeactivateView(
     def post(self, request):
         students = self.get_selected_students(request)
         with transaction.atomic():
-            updated_count = students.update(is_active=False)
+            updated_count = 0
+            for student in students:
+                deactivate_student(student)
+                updated_count += 1
             recalculate_club_current_members()
 
         messages.success(request, f'已批次停用 {updated_count} 位學生。')
@@ -438,11 +453,11 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
     template_name = 'accounts/student_admin_confirm_delete.html'
 
     def get(self, request, pk):
-        student = get_object_or_404(User, pk=pk, role='student')
+        student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
         return render(request, self.template_name, {'student': student})
 
     def post(self, request, pk):
-        student = get_object_or_404(User, pk=pk, role='student')
+        student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
 
         with transaction.atomic():
             result = safely_delete_student(student)
