@@ -35,6 +35,7 @@ class TransferWindow(models.Model):
     """
     start_date = models.DateField(verbose_name='轉社開始日期')
     end_date = models.DateField(verbose_name='轉社結束日期')
+    is_paused = models.BooleanField(default=False, verbose_name='暫停轉社期')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新時間')
 
     class Meta:
@@ -49,10 +50,14 @@ class TransferWindow(models.Model):
         return cls.objects.order_by('-updated_at', '-pk').first()
 
     def is_open(self, today=None):
+        if self.is_paused:
+            return False
         today = today or timezone.localdate()
         return self.start_date <= today <= self.end_date
 
     def get_status(self, today=None):
+        if self.is_paused:
+            return 'paused'
         today = today or timezone.localdate()
         if today < self.start_date:
             return 'not_started'
@@ -63,11 +68,13 @@ class TransferWindow(models.Model):
     @property
     def status_text(self):
         status = self.get_status()
+        if status == 'paused':
+            return '已暫停'
         if status == 'not_started':
-            return '轉社尚未開始'
+            return '尚未開始'
         if status == 'ended':
-            return '本學期轉社已截止'
-        return '轉社申請開放中'
+            return '已截止'
+        return '開放中'
 
 
 class TransferRequest(models.Model):

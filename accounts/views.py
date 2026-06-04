@@ -10,7 +10,7 @@ from django.views.generic import CreateView, FormView, ListView, TemplateView, U
 from clubs.models import Club
 from transfers.forms import TransferWindowForm
 from transfers.models import get_user_from_display_text
-from transfers.models import TransferRequest
+from transfers.models import TransferRequest, TransferWindow
 from transfers.services import get_transfer_window_state
 from .forms import (
     ClubAdminForm,
@@ -87,6 +87,27 @@ class TransferWindowSettingsView(LoginRequiredMixin, AdminRequiredMixin, View):
             return redirect('transfer_window_settings')
 
         return render(request, self.template_name, {**state, 'form': form})
+
+
+class TransferWindowPauseView(LoginRequiredMixin, AdminRequiredMixin, View):
+    is_paused = True
+    success_message = '轉社期已暫停。'
+
+    def post(self, request):
+        transfer_window = TransferWindow.get_current()
+        if not transfer_window:
+            messages.error(request, '尚未設定轉社期間。')
+            return redirect('transfer_window_settings')
+
+        transfer_window.is_paused = self.is_paused
+        transfer_window.save(update_fields=['is_paused', 'updated_at'])
+        messages.success(request, self.success_message)
+        return redirect('transfer_window_settings')
+
+
+class TransferWindowResumeView(TransferWindowPauseView):
+    is_paused = False
+    success_message = '轉社期已恢復。'
 
 
 class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView):

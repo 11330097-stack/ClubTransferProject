@@ -25,4 +25,4 @@ class ApprovalLogAdmin(admin.ModelAdmin):
 
 @admin.register(TransferWindow)
 class TransferWindowAdmin(admin.ModelAdmin):
-    list_display = ['start_date', 'end_date', 'updated_at']
+    list_display = ['start_date', 'end_date', 'is_paused', 'updated_at']

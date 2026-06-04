@@ -12,7 +12,9 @@
                 <div class="fw-semibold">轉社申請期間</div>
                 {% if transfer_window %}
                     <div>轉社期間：{{ transfer_window.start_date|date:"Y/m/d" }} ~ {{ transfer_window.end_date|date:"Y/m/d" }}</div>
-                    {% if transfer_window_status == 'not_started' %}
+                    {% if transfer_window_status == 'paused' %}
+                        <div class="text-muted">轉社申請目前暫停</div>
+                    {% elif transfer_window_status == 'not_started' %}
                         <div class="text-muted">轉社尚未開始</div>
                     {% elif transfer_window_status == 'ended' %}
                         <div class="text-muted">本學期轉社已截止</div>

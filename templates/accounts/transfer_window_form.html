@@ -14,7 +14,20 @@
                     <div class="alert alert-info">
                         目前設定：{{ transfer_window.start_date|date:"Y/m/d" }} ~ {{ transfer_window.end_date|date:"Y/m/d" }}
                         <br>
-                        {{ transfer_window.status_text }}
+                        目前狀態：{{ transfer_window.status_text }}
+                    </div>
+                    <div class="mb-3">
+                        {% if transfer_window.is_paused %}
+                            <form method="post" action="{% url 'transfer_window_resume' %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success">恢復轉社期</button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="{% url 'transfer_window_pause' %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-warning">暫停轉社期</button>
+                            </form>
+                        {% endif %}
                     </div>
                 {% else %}
                     <div class="alert alert-warning">

@@ -65,8 +65,12 @@ class AdminRequiredMixin(UserPassesTestMixin):
 
 class TransferWindowOpenRequiredMixin:
     def dispatch(self, request, *args, **kwargs):
-        if not get_transfer_window_state()['transfer_window_is_open']:
-            messages.error(request, '目前不在轉社申請期間內')
+        state = get_transfer_window_state()
+        if not state['transfer_window_is_open']:
+            if state['transfer_window_status'] == 'paused':
+                messages.error(request, '轉社申請目前暫停')
+            else:
+                messages.error(request, '目前不在轉社申請期間內')
             return redirect('home')
         return super().dispatch(request, *args, **kwargs)
 
