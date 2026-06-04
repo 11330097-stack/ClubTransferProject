@@ -1450,12 +1450,15 @@ class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, V
             student = User.objects.select_for_update().select_related('club').get(pk=student.pk)
             club = Club.objects.select_for_update().get(pk=student.club_id)
             previous_president = get_user_from_display_text(club.president)
+            missing_president_notice = False
 
             if previous_president and previous_president.pk != student.pk:
                 previous_president = User.objects.select_for_update().get(pk=previous_president.pk)
                 previous_president.role = 'student'
                 previous_president.club = club
                 previous_president.save(update_fields=['role', 'club'])
+            elif club.president:
+                missing_president_notice = True
             demote_other_club_presidents(club, student)
 
             student.role = 'president'
@@ -1468,7 +1471,9 @@ class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, V
 
             recalculate_club_current_members()
 
-        messages.success(request, f'{display_name} 已晉升為 {club.name} 社長。')
+        if missing_president_notice:
+            messages.warning(request, '原社長資料未完整，已直接更新社長欄位。')
+        messages.success(request, f'已將 {display_name} 晉升為社長')
         return redirect(self.success_url_name)
 
 

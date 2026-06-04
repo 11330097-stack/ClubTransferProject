@@ -149,7 +149,7 @@
                                 {% if account.role == 'student' and account.club %}
                                     <form method="post" action="{% url 'account_admin_promote_president' account.pk %}" class="d-inline">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-outline-success">晉升社長</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-success">晉升為社長</button>
                                     </form>
                                 {% endif %}
                                 {% if account.is_active %}
