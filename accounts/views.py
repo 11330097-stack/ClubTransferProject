@@ -973,19 +973,20 @@ class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
                 is_active=True,
             ).order_by('role', 'username')
         )
-        context['club_members'] = [
+        club_members = [
             {
                 'user': member,
                 'is_president': is_club_president_user(member, self.object),
             }
-            for member in sorted(
-                members,
-                key=lambda member: (
-                    0 if is_club_president_user(member, self.object) else 1,
-                    member.first_name or member.username,
-                ),
-            )
+            for member in members
         ]
+        context['club_members'] = sorted(
+            club_members,
+            key=lambda member_info: (
+                0 if member_info['is_president'] else 1,
+                member_info['user'].first_name or member_info['user'].username,
+            ),
+        )
         return context
 
     def form_valid(self, form):

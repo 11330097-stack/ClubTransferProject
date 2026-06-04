@@ -20,12 +20,12 @@ REQUIRED_STUDENT_IMPORT_FIELDS = [
 ]
 
 REQUIRED_CLUB_IMPORT_FIELDS = [
-    'code',
     'name',
     'teacher_username',
     'president_username',
     'location',
     'max_members',
+    'description',
 ]
 
 SAMPLE_STUDENT_IMPORT_CSV = (
@@ -35,9 +35,9 @@ SAMPLE_STUDENT_IMPORT_CSV = (
 )
 
 SAMPLE_CLUB_IMPORT_CSV = (
-    'code,name,teacher_username,president_username,location,max_members,description\n'
-    'D001,Debate Club,teacher001,student001,Room 101,30,Weekly debate practice\n'
-    'D002,Drama Club,,,Auditorium,25,'
+    'name,teacher_username,president_username,location,max_members,description\n'
+    '籃球社,teacher001,student001,體育館,30,籃球訓練與比賽\n'
+    '資訊研究社,teacher002,student002,電腦教室,25,資訊與程式設計'
 )
 
 
@@ -131,6 +131,18 @@ def generate_unique_student_id():
     return generate_unique_value('S', 'student_id', width=6)
 
 
+def generate_unique_club_code():
+    existing_values = set(
+        Club.objects.filter(code__startswith='C').values_list('code', flat=True)
+    )
+    number = 1
+    while True:
+        value = f'C{number:03d}'
+        if value not in existing_values:
+            return value
+        number += 1
+
+
 def generate_unique_value(prefix, field_name, width):
     existing_values = set(
         User.objects.filter(**{f'{field_name}__startswith': prefix})
@@ -207,17 +219,22 @@ def import_clubs_from_csv(csv_file):
             }
             cleaned['description'] = (row.get('description') or '').strip()
 
-            existing_club = Club.objects.filter(code=cleaned['code']).first()
+            existing_club = Club.objects.filter(name=cleaned['name']).first()
             teacher, president, error = validate_club_import_row(cleaned, existing_club)
             if error:
                 result['skipped'] += 1
                 result['errors'].append({'row': row_number, 'reason': error})
                 continue
 
-            club, created = Club.objects.select_for_update().get_or_create(
-                code=cleaned['code'],
-                defaults={'name': cleaned['name']},
-            )
+            if existing_club:
+                club = Club.objects.select_for_update().get(pk=existing_club.pk)
+                created = False
+            else:
+                club = Club.objects.create(
+                    code=generate_unique_club_code(),
+                    name=cleaned['name'],
+                )
+                created = True
             previous_president_ids = get_previous_president_ids(club)
 
             club.name = cleaned['name']
@@ -262,8 +279,6 @@ def import_clubs_from_csv(csv_file):
 
 
 def validate_club_import_row(row, existing_club=None):
-    if not row['code']:
-        return None, None, 'code is required.'
     if not row['name']:
         return None, None, 'name is required.'
 
