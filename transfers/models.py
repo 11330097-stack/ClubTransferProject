@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.mail import send_mail
 from django.urls import reverse
+from django.utils import timezone
 import re
 
 
@@ -26,6 +27,47 @@ def get_user_from_display_text(value):
         return User.objects.get(username=username)
     except User.DoesNotExist:
         return None
+
+
+class TransferWindow(models.Model):
+    """
+    系統層級的轉社申請期間設定。
+    """
+    start_date = models.DateField(verbose_name='轉社開始日期')
+    end_date = models.DateField(verbose_name='轉社結束日期')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新時間')
+
+    class Meta:
+        verbose_name = '轉社期限設定'
+        verbose_name_plural = '轉社期限設定'
+
+    def __str__(self):
+        return f'{self.start_date:%Y/%m/%d} ~ {self.end_date:%Y/%m/%d}'
+
+    @classmethod
+    def get_current(cls):
+        return cls.objects.order_by('-updated_at', '-pk').first()
+
+    def is_open(self, today=None):
+        today = today or timezone.localdate()
+        return self.start_date <= today <= self.end_date
+
+    def get_status(self, today=None):
+        today = today or timezone.localdate()
+        if today < self.start_date:
+            return 'not_started'
+        if today > self.end_date:
+            return 'ended'
+        return 'open'
+
+    @property
+    def status_text(self):
+        status = self.get_status()
+        if status == 'not_started':
+            return '轉社尚未開始'
+        if status == 'ended':
+            return '本學期轉社已截止'
+        return '轉社申請開放中'
 
 
 class TransferRequest(models.Model):

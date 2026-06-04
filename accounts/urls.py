@@ -12,6 +12,7 @@ urlpatterns = [
     ), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('profile/', views.ProfileView.as_view(), name='profile'),
+    path('admin-panel/transfer-window/', views.TransferWindowSettingsView.as_view(), name='transfer_window_settings'),
     path('admin-panel/unassigned/accounts/', views.UnassignedAccountListView.as_view(), name='unassigned_account_list'),
     path('admin-panel/unassigned/students/<int:pk>/assign-club/', views.UnassignedStudentAssignClubView.as_view(), name='unassigned_student_assign_club'),
     path('admin-panel/teachers/', views.TeacherAdminListView.as_view(), name='teacher_admin_list'),

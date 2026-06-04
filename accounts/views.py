@@ -8,8 +8,10 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView, View
 
 from clubs.models import Club
+from transfers.forms import TransferWindowForm
 from transfers.models import get_user_from_display_text
 from transfers.models import TransferRequest
+from transfers.services import get_transfer_window_state
 from .forms import (
     ClubAdminForm,
     ClubCsvImportForm,
@@ -60,11 +62,31 @@ class HomeView(TemplateView):
             'student_count': UserModel.objects.filter(role='student', is_active=True).count(),
             'pending_count': TransferRequest.objects.filter(status__in=pending_statuses).count(),
         })
+        context.update(get_transfer_window_state())
         return context
 
 
 class ProfileView(LoginRequiredMixin, TemplateView):
     template_name = 'accounts/profile.html'
+
+
+class TransferWindowSettingsView(LoginRequiredMixin, AdminRequiredMixin, View):
+    template_name = 'accounts/transfer_window_form.html'
+
+    def get(self, request):
+        state = get_transfer_window_state()
+        form = TransferWindowForm(instance=state['transfer_window'])
+        return render(request, self.template_name, {**state, 'form': form})
+
+    def post(self, request):
+        state = get_transfer_window_state()
+        form = TransferWindowForm(request.POST, instance=state['transfer_window'])
+        if form.is_valid():
+            form.save()
+            messages.success(request, '轉社期限設定已更新。')
+            return redirect('transfer_window_settings')
+
+        return render(request, self.template_name, {**state, 'form': form})
 
 
 class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView):

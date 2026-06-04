@@ -7,6 +7,7 @@ from django.db import transaction, models
 from django.utils import timezone
 from django.core.exceptions import PermissionDenied
 from .models import TransferRequest, ApprovalLog
+from .services import get_transfer_window_state
 from clubs.models import Club
 from accounts.models import User
 
@@ -62,7 +63,15 @@ class AdminRequiredMixin(UserPassesTestMixin):
         return is_training_admin(self.request.user)
 
 
-class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, CreateView):
+class TransferWindowOpenRequiredMixin:
+    def dispatch(self, request, *args, **kwargs):
+        if not get_transfer_window_state()['transfer_window_is_open']:
+            messages.error(request, '目前不在轉社申請期間內')
+            return redirect('home')
+        return super().dispatch(request, *args, **kwargs)
+
+
+class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, TransferWindowOpenRequiredMixin, CreateView):
     """
     提交轉社申請
     """

@@ -59,9 +59,11 @@
                     </li>
                     {% if user.is_authenticated %}
                         {% if user.role == 'student' %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'transfer_apply' %}">申請轉社</a>
-                            </li>
+                            {% if transfer_window_is_open %}
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'transfer_apply' %}">申請轉社</a>
+                                </li>
+                            {% endif %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'my_requests' %}">我的申請</a>
                             </li>
@@ -77,6 +79,9 @@
                             </li>
                         {% endif %}
                         {% if user.is_superuser or user.role == 'admin' %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'transfer_window_settings' %}">轉社期限設定</a>
+                            </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'club_admin_list' %}">社團管理</a>
                             </li>

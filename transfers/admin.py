@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import TransferRequest, ApprovalLog
+from .models import TransferRequest, ApprovalLog, TransferWindow
 
 
 class ApprovalLogInline(admin.TabularInline):
@@ -21,3 +21,8 @@ class TransferRequestAdmin(admin.ModelAdmin):
 class ApprovalLogAdmin(admin.ModelAdmin):
     list_display = ['transfer_request', 'approver', 'approval_stage', 'result', 'created_at']
     list_filter = ['result', 'created_at']
+
+
+@admin.register(TransferWindow)
+class TransferWindowAdmin(admin.ModelAdmin):
+    list_display = ['start_date', 'end_date', 'updated_at']
