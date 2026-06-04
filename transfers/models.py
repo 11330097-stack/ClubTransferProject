@@ -77,6 +77,67 @@ class TransferWindow(models.Model):
         return '開放中'
 
 
+class TransferRecordArchive(models.Model):
+    transfer_window = models.ForeignKey(
+        TransferWindow,
+        on_delete=models.PROTECT,
+        related_name='record_archives',
+        verbose_name='轉社期',
+    )
+    title = models.CharField(max_length=100, verbose_name='名稱')
+    start_date = models.DateField(verbose_name='開始日期')
+    end_date = models.DateField(verbose_name='結束日期')
+    archived_at = models.DateTimeField(auto_now_add=True, verbose_name='儲存時間')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='created_transfer_record_archives',
+        verbose_name='儲存者',
+    )
+
+    class Meta:
+        verbose_name = '轉社紀錄批次'
+        verbose_name_plural = '轉社紀錄批次'
+        ordering = ['-archived_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['transfer_window', 'start_date', 'end_date'],
+                name='unique_archive_per_transfer_window_period',
+            ),
+        ]
+
+    def __str__(self):
+        return self.title
+
+
+class TransferRecordSnapshot(models.Model):
+    archive = models.ForeignKey(
+        TransferRecordArchive,
+        on_delete=models.CASCADE,
+        related_name='snapshots',
+        verbose_name='轉社紀錄批次',
+    )
+    student_name = models.CharField(max_length=150, verbose_name='學生')
+    student_username = models.CharField(max_length=150, verbose_name='帳號')
+    student_id = models.CharField(max_length=20, blank=True, verbose_name='學號')
+    original_club_name = models.CharField(max_length=100, verbose_name='原社團')
+    target_club_name = models.CharField(max_length=100, verbose_name='新社團')
+    status = models.CharField(max_length=30, verbose_name='狀態')
+    submitted_at = models.DateTimeField(verbose_name='申請時間')
+    approved_at = models.DateTimeField(null=True, blank=True, verbose_name='核准或更新時間')
+    approval_summary = models.TextField(blank=True, verbose_name='審核摘要')
+
+    class Meta:
+        verbose_name = '轉社紀錄快照'
+        verbose_name_plural = '轉社紀錄快照'
+        ordering = ['submitted_at', 'pk']
+
+    def __str__(self):
+        return f'{self.student_name}: {self.original_club_name} → {self.target_club_name}'
+
+
 class TransferRequest(models.Model):
     """
     轉社申請單模型

@@ -80,6 +80,9 @@
                         {% endif %}
                         {% if user.is_superuser or user.role == 'admin' %}
                             <li class="nav-item">
+                                <a class="nav-link" href="{% url 'transfer_record_archive_list' %}">轉社紀錄</a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link" href="{% url 'transfer_window_settings' %}">轉社期限設定</a>
                             </li>
                             <li class="nav-item">

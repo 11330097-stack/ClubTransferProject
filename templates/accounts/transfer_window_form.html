@@ -29,6 +29,26 @@
                             </form>
                         {% endif %}
                     </div>
+                    <div class="border rounded p-3 mb-4">
+                        <div class="fw-semibold mb-2">轉社紀錄保存</div>
+                        <div class="text-muted small mb-3">
+                            此轉社期間共有 {{ transfer_record_archive_request_count }} 筆轉社申請紀錄。
+                        </div>
+                        {% if transfer_record_archive_existing %}
+                            <div class="alert alert-success mb-2">此轉社期已儲存。</div>
+                            <a href="{% url 'transfer_record_archive_detail' transfer_record_archive_existing.pk %}" class="btn btn-outline-primary">
+                                查看已儲存紀錄
+                            </a>
+                        {% elif transfer_record_archive_can_create %}
+                            <form method="post" action="{% url 'transfer_record_archive_create' %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-primary">儲存轉社記錄</button>
+                            </form>
+                        {% else %}
+                            <button type="button" class="btn btn-outline-secondary" disabled>儲存轉社記錄</button>
+                            <div class="text-muted small mt-2">轉社期暫停或截止後才能儲存。</div>
+                        {% endif %}
+                    </div>
                 {% else %}
                     <div class="alert alert-warning">
                         尚未設定轉社期間。未設定前，學生無法建立轉社申請。

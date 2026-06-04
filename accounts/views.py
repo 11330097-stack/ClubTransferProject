@@ -2,15 +2,22 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView, View
+from django.utils import timezone
+from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView, UpdateView, View
 
 from clubs.models import Club
 from transfers.forms import TransferWindowForm
 from transfers.models import get_user_from_display_text
-from transfers.models import TransferRequest, TransferWindow
+from transfers.models import (
+    ApprovalLog,
+    TransferRecordArchive,
+    TransferRecordSnapshot,
+    TransferRequest,
+    TransferWindow,
+)
 from transfers.services import get_transfer_window_state
 from .forms import (
     ClubAdminForm,
@@ -73,10 +80,43 @@ class ProfileView(LoginRequiredMixin, TemplateView):
 class TransferWindowSettingsView(LoginRequiredMixin, AdminRequiredMixin, View):
     template_name = 'accounts/transfer_window_form.html'
 
+    def get_archive_context(self, transfer_window):
+        if not transfer_window:
+            return {
+                'transfer_record_archive_can_create': False,
+                'transfer_record_archive_existing': None,
+                'transfer_record_archive_request_count': 0,
+            }
+
+        today = timezone.localdate()
+        can_create = transfer_window.is_paused or today > transfer_window.end_date
+        existing = TransferRecordArchive.objects.filter(
+            transfer_window=transfer_window,
+            start_date=transfer_window.start_date,
+            end_date=transfer_window.end_date,
+        ).first()
+        request_count = TransferRequest.objects.filter(
+            created_at__date__gte=transfer_window.start_date,
+            created_at__date__lte=transfer_window.end_date,
+        ).count()
+        return {
+            'transfer_record_archive_can_create': can_create,
+            'transfer_record_archive_existing': existing,
+            'transfer_record_archive_request_count': request_count,
+        }
+
     def get(self, request):
         state = get_transfer_window_state()
         form = TransferWindowForm(instance=state['transfer_window'])
-        return render(request, self.template_name, {**state, 'form': form})
+        return render(
+            request,
+            self.template_name,
+            {
+                **state,
+                **self.get_archive_context(state['transfer_window']),
+                'form': form,
+            },
+        )
 
     def post(self, request):
         state = get_transfer_window_state()
@@ -86,7 +126,15 @@ class TransferWindowSettingsView(LoginRequiredMixin, AdminRequiredMixin, View):
             messages.success(request, '轉社期限設定已更新。')
             return redirect('transfer_window_settings')
 
-        return render(request, self.template_name, {**state, 'form': form})
+        return render(
+            request,
+            self.template_name,
+            {
+                **state,
+                **self.get_archive_context(state['transfer_window']),
+                'form': form,
+            },
+        )
 
 
 class TransferWindowPauseView(LoginRequiredMixin, AdminRequiredMixin, View):
@@ -108,6 +156,123 @@ class TransferWindowPauseView(LoginRequiredMixin, AdminRequiredMixin, View):
 class TransferWindowResumeView(TransferWindowPauseView):
     is_paused = False
     success_message = '轉社期已恢復。'
+
+
+def build_approval_summary(transfer_request):
+    logs = list(transfer_request.approval_logs.all().order_by('created_at'))
+    if not logs:
+        return '尚無審核紀錄'
+
+    stage_labels = dict(TransferRequest.STATUS_CHOICES)
+    result_labels = dict(ApprovalLog.RESULT_CHOICES)
+    lines = []
+    for log in logs:
+        approver_name = (
+            log.approver.get_full_name()
+            or log.approver.first_name
+            or log.approver.username
+        )
+        created_at = timezone.localtime(log.created_at).strftime('%Y/%m/%d %H:%M')
+        stage = stage_labels.get(log.approval_stage, log.approval_stage)
+        result = result_labels.get(log.result, log.result)
+        comment = log.comment or '無意見'
+        lines.append(f'{created_at}｜{stage}｜{approver_name}｜{result}｜{comment}')
+
+    return '\n'.join(lines)
+
+
+class TransferRecordArchiveCreateView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request):
+        transfer_window = TransferWindow.get_current()
+        if not transfer_window:
+            messages.error(request, '尚未設定轉社期間。')
+            return redirect('transfer_window_settings')
+
+        today = timezone.localdate()
+        if not (transfer_window.is_paused or today > transfer_window.end_date):
+            messages.error(request, '只有轉社期已暫停或已截止後，才能儲存轉社記錄。')
+            return redirect('transfer_window_settings')
+
+        existing = TransferRecordArchive.objects.filter(
+            transfer_window=transfer_window,
+            start_date=transfer_window.start_date,
+            end_date=transfer_window.end_date,
+        ).first()
+        if existing:
+            messages.warning(request, '此轉社期已儲存。')
+            return redirect('transfer_record_archive_detail', pk=existing.pk)
+
+        transfer_requests = list(
+            TransferRequest.objects.filter(
+                created_at__date__gte=transfer_window.start_date,
+                created_at__date__lte=transfer_window.end_date,
+            )
+            .select_related('student', 'original_club', 'target_club')
+            .prefetch_related('approval_logs__approver')
+            .order_by('created_at', 'pk')
+        )
+
+        with transaction.atomic():
+            archive = TransferRecordArchive.objects.create(
+                transfer_window=transfer_window,
+                title=f'{transfer_window.start_date:%Y/%m/%d} ~ {transfer_window.end_date:%Y/%m/%d} 轉社紀錄',
+                start_date=transfer_window.start_date,
+                end_date=transfer_window.end_date,
+                created_by=request.user,
+            )
+            snapshots = []
+            for transfer_request in transfer_requests:
+                student = transfer_request.student
+                student_name = (
+                    student.get_full_name()
+                    or student.first_name
+                    or student.username
+                )
+                snapshots.append(
+                    TransferRecordSnapshot(
+                        archive=archive,
+                        student_name=student_name,
+                        student_username=student.username,
+                        student_id=student.student_id,
+                        original_club_name=transfer_request.original_club.name,
+                        target_club_name=transfer_request.target_club.name,
+                        status=transfer_request.get_status_display(),
+                        submitted_at=transfer_request.created_at,
+                        approved_at=transfer_request.completed_at or transfer_request.updated_at,
+                        approval_summary=build_approval_summary(transfer_request),
+                    )
+                )
+
+            TransferRecordSnapshot.objects.bulk_create(snapshots)
+
+        messages.success(request, f'已儲存 {len(snapshots)} 筆轉社紀錄。')
+        return redirect('transfer_record_archive_detail', pk=archive.pk)
+
+
+class TransferRecordArchiveListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
+    model = TransferRecordArchive
+    template_name = 'accounts/transfer_record_archive_list.html'
+    context_object_name = 'archives'
+    paginate_by = 50
+
+    def get_queryset(self):
+        return TransferRecordArchive.objects.annotate(
+            snapshot_count=Count('snapshots'),
+        ).select_related('created_by').order_by('-archived_at')
+
+
+class TransferRecordArchiveDetailView(LoginRequiredMixin, AdminRequiredMixin, DetailView):
+    model = TransferRecordArchive
+    template_name = 'accounts/transfer_record_archive_detail.html'
+    context_object_name = 'archive'
+
+    def get_queryset(self):
+        return TransferRecordArchive.objects.select_related('created_by')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['snapshots'] = self.object.snapshots.all()
+        return context
 
 
 class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):

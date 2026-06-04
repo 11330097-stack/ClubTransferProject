@@ -1,5 +1,11 @@
 from django.contrib import admin
-from .models import TransferRequest, ApprovalLog, TransferWindow
+from .models import (
+    ApprovalLog,
+    TransferRecordArchive,
+    TransferRecordSnapshot,
+    TransferRequest,
+    TransferWindow,
+)
 
 
 class ApprovalLogInline(admin.TabularInline):
@@ -26,3 +32,43 @@ class ApprovalLogAdmin(admin.ModelAdmin):
 @admin.register(TransferWindow)
 class TransferWindowAdmin(admin.ModelAdmin):
     list_display = ['start_date', 'end_date', 'is_paused', 'updated_at']
+
+
+class TransferRecordSnapshotInline(admin.TabularInline):
+    model = TransferRecordSnapshot
+    extra = 0
+    readonly_fields = [
+        'student_name',
+        'student_username',
+        'student_id',
+        'original_club_name',
+        'target_club_name',
+        'status',
+        'submitted_at',
+        'approved_at',
+        'approval_summary',
+    ]
+    fields = readonly_fields
+    can_delete = False
+
+
+@admin.register(TransferRecordArchive)
+class TransferRecordArchiveAdmin(admin.ModelAdmin):
+    list_display = ['title', 'start_date', 'end_date', 'archived_at', 'created_by']
+    list_filter = ['archived_at', 'start_date', 'end_date']
+    search_fields = ['title']
+    inlines = [TransferRecordSnapshotInline]
+
+
+@admin.register(TransferRecordSnapshot)
+class TransferRecordSnapshotAdmin(admin.ModelAdmin):
+    list_display = [
+        'student_name',
+        'student_id',
+        'original_club_name',
+        'target_club_name',
+        'status',
+        'submitted_at',
+    ]
+    list_filter = ['status', 'submitted_at']
+    search_fields = ['student_name', 'student_username', 'student_id', 'original_club_name', 'target_club_name']

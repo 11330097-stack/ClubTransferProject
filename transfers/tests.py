@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -6,7 +7,13 @@ from django.utils import timezone
 
 from accounts.models import User
 from clubs.models import Club
-from .models import TransferRequest, TransferWindow
+from .models import (
+    ApprovalLog,
+    TransferRecordArchive,
+    TransferRecordSnapshot,
+    TransferRequest,
+    TransferWindow,
+)
 
 
 class SuperuserTransferAdminTests(TestCase):
@@ -217,3 +224,216 @@ class TransferWindowPauseTests(TestCase):
         self.assertEqual(pause_response.status_code, 405)
         self.assertEqual(resume_response.status_code, 405)
         self.assertFalse(self.window.is_paused)
+
+
+class TransferRecordArchiveTests(TestCase):
+    def setUp(self):
+        self.today = timezone.localdate()
+        self.admin = User.objects.create_user(
+            username='record-admin',
+            password='password',
+            role='admin',
+            first_name='Record Admin',
+        )
+        self.superuser = User.objects.create_superuser(
+            username='record-superuser',
+            password='password',
+            email='record-superuser@example.com',
+        )
+        self.student = User.objects.create_user(
+            username='record-student',
+            password='password',
+            role='student',
+            first_name='Record Student',
+            student_id='RS001',
+        )
+        self.teacher = User.objects.create_user(
+            username='record-teacher',
+            password='password',
+            role='teacher',
+        )
+        self.president = User.objects.create_user(
+            username='record-president',
+            password='password',
+            role='president',
+        )
+        self.original_club = Club.objects.create(code='RA001', name='Record Original')
+        self.target_club = Club.objects.create(code='RA002', name='Record Target')
+
+    def create_transfer_request(self, created_at=None, **overrides):
+        data = {
+            'student': self.student,
+            'original_club': self.original_club,
+            'target_club': self.target_club,
+            'status': 'approved',
+        }
+        data.update(overrides)
+        transfer_request = TransferRequest.objects.create(**data)
+        if created_at:
+            TransferRequest.objects.filter(pk=transfer_request.pk).update(
+                created_at=created_at,
+                updated_at=created_at,
+            )
+            transfer_request.refresh_from_db()
+        return transfer_request
+
+    def test_admin_can_archive_paused_transfer_window(self):
+        window = TransferWindow.objects.create(
+            start_date=self.today,
+            end_date=self.today,
+            is_paused=True,
+        )
+        transfer_request = self.create_transfer_request(timezone.now())
+        ApprovalLog.objects.create(
+            transfer_request=transfer_request,
+            approver=self.admin,
+            approval_stage='admin_pending',
+            result='approve',
+            comment='完成核定',
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse('transfer_record_archive_create'))
+
+        archive = TransferRecordArchive.objects.get()
+        self.assertRedirects(response, reverse('transfer_record_archive_detail', args=[archive.pk]))
+        self.assertEqual(archive.transfer_window, window)
+        self.assertEqual(archive.created_by, self.admin)
+        snapshot = archive.snapshots.get()
+        self.assertEqual(snapshot.student_name, 'Record Student')
+        self.assertEqual(snapshot.student_username, 'record-student')
+        self.assertEqual(snapshot.student_id, 'RS001')
+        self.assertEqual(snapshot.original_club_name, 'Record Original')
+        self.assertEqual(snapshot.target_club_name, 'Record Target')
+        self.assertEqual(snapshot.status, '已核准')
+        self.assertIn('訓育組審核中', snapshot.approval_summary)
+        self.assertIn('Record Admin', snapshot.approval_summary)
+        self.assertTrue(TransferRequest.objects.filter(pk=transfer_request.pk).exists())
+
+    def test_superuser_can_archive_after_transfer_window_ended(self):
+        ended_date = self.today - timedelta(days=1)
+        TransferWindow.objects.create(
+            start_date=ended_date,
+            end_date=ended_date,
+            is_paused=False,
+        )
+        self.create_transfer_request(timezone.now() - timedelta(days=1))
+        self.client.force_login(self.superuser)
+
+        response = self.client.post(reverse('transfer_record_archive_create'))
+
+        archive = TransferRecordArchive.objects.get()
+        self.assertRedirects(response, reverse('transfer_record_archive_detail', args=[archive.pk]))
+        self.assertEqual(archive.snapshots.count(), 1)
+
+    def test_open_unpaused_transfer_window_cannot_be_archived(self):
+        TransferWindow.objects.create(
+            start_date=self.today,
+            end_date=self.today,
+            is_paused=False,
+        )
+        self.create_transfer_request(timezone.now())
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse('transfer_record_archive_create'))
+
+        self.assertRedirects(response, reverse('transfer_window_settings'))
+        self.assertFalse(TransferRecordArchive.objects.exists())
+        self.assertEqual(TransferRequest.objects.count(), 1)
+
+    def test_archive_only_includes_requests_created_inside_window_dates(self):
+        TransferWindow.objects.create(
+            start_date=self.today,
+            end_date=self.today,
+            is_paused=True,
+        )
+        inside_request = self.create_transfer_request(timezone.now())
+        self.create_transfer_request(timezone.now() - timedelta(days=2))
+        self.client.force_login(self.admin)
+
+        self.client.post(reverse('transfer_record_archive_create'))
+
+        snapshots = TransferRecordSnapshot.objects.all()
+        self.assertEqual(snapshots.count(), 1)
+        self.assertEqual(snapshots.get().submitted_at.date(), inside_request.created_at.date())
+
+    def test_duplicate_archive_is_prevented(self):
+        TransferWindow.objects.create(
+            start_date=self.today,
+            end_date=self.today,
+            is_paused=True,
+        )
+        self.create_transfer_request(timezone.now())
+        self.client.force_login(self.admin)
+
+        first_response = self.client.post(reverse('transfer_record_archive_create'))
+        archive = TransferRecordArchive.objects.get()
+        second_response = self.client.post(reverse('transfer_record_archive_create'))
+
+        self.assertRedirects(first_response, reverse('transfer_record_archive_detail', args=[archive.pk]))
+        self.assertRedirects(second_response, reverse('transfer_record_archive_detail', args=[archive.pk]))
+        self.assertEqual(TransferRecordArchive.objects.count(), 1)
+        self.assertEqual(TransferRecordSnapshot.objects.count(), 1)
+
+    def test_snapshot_keeps_original_values_after_source_records_change(self):
+        TransferWindow.objects.create(
+            start_date=self.today,
+            end_date=self.today,
+            is_paused=True,
+        )
+        self.create_transfer_request(timezone.now())
+        self.client.force_login(self.admin)
+        self.client.post(reverse('transfer_record_archive_create'))
+
+        self.student.first_name = 'Changed Student'
+        self.student.student_id = 'CHANGED'
+        self.student.save(update_fields=['first_name', 'student_id'])
+        self.original_club.name = 'Changed Original'
+        self.original_club.save(update_fields=['name'])
+
+        snapshot = TransferRecordSnapshot.objects.get()
+        self.assertEqual(snapshot.student_name, 'Record Student')
+        self.assertEqual(snapshot.student_id, 'RS001')
+        self.assertEqual(snapshot.original_club_name, 'Record Original')
+
+    def test_archive_pages_are_admin_only(self):
+        TransferWindow.objects.create(
+            start_date=self.today,
+            end_date=self.today,
+            is_paused=True,
+        )
+        self.create_transfer_request(timezone.now())
+        self.client.force_login(self.admin)
+        self.client.post(reverse('transfer_record_archive_create'))
+        archive = TransferRecordArchive.objects.get()
+
+        for user in [self.student, self.teacher, self.president]:
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(reverse('transfer_record_archive_list')).status_code, 403)
+            self.assertEqual(
+                self.client.get(reverse('transfer_record_archive_detail', args=[archive.pk])).status_code,
+                403,
+            )
+            self.assertEqual(self.client.post(reverse('transfer_record_archive_create')).status_code, 403)
+
+    def test_archive_list_detail_and_navbar(self):
+        TransferWindow.objects.create(
+            start_date=self.today,
+            end_date=self.today,
+            is_paused=True,
+        )
+        self.create_transfer_request(timezone.now())
+        self.client.force_login(self.admin)
+        self.client.post(reverse('transfer_record_archive_create'))
+        archive = TransferRecordArchive.objects.get()
+
+        list_response = self.client.get(reverse('transfer_record_archive_list'))
+        detail_response = self.client.get(reverse('transfer_record_archive_detail', args=[archive.pk]))
+        home_response = self.client.get(reverse('home'))
+
+        self.assertContains(list_response, archive.title)
+        self.assertContains(list_response, '1')
+        self.assertContains(detail_response, 'Record Student')
+        self.assertContains(detail_response, 'Record Original')
+        self.assertContains(home_response, reverse('transfer_record_archive_list'))
+        self.assertContains(home_response, '轉社紀錄')
