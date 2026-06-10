@@ -18,8 +18,11 @@
 
 <div class="card card-body mb-3">
     <h2 class="h5">CSV 格式</h2>
-    <p class="mb-2">CSV 欄位需包含 name, role, email, class_name, seat_number, club_code, password。role 只允許 student 或 teacher；username 由系統自動產生。</p>
-    <pre class="mb-0">{{ sample_csv }}</pre>
+    <p class="mb-2">CSV 欄位需包含：</p>
+    <p class="mb-2">name, role, email, class_name, seat_number, club_code, password</p>
+    <p class="mb-2">請使用 Excel 的：</p>
+    <p class="mb-2">「另存新檔 → CSV UTF-8（逗號分隔） (*.csv)」</p>
+    <p class="mb-0">本系統不支援 .xlsx 檔案。</p>
 </div>
 
 {% if result %}
