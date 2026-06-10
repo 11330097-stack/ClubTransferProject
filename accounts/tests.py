@@ -17,6 +17,12 @@ def csv_upload(content):
     )
 
 
+def uploaded_file(name, content, content_type='application/octet-stream'):
+    if isinstance(content, str):
+        content = content.encode('utf-8')
+    return SimpleUploadedFile(name, content, content_type=content_type)
+
+
 class ClubAdminDeleteViewTests(TestCase):
     def test_club_admin_list_only_shows_edit_and_delete_for_active_clubs(self):
         admin = User.objects.create_user(
@@ -772,16 +778,22 @@ class AccountAdminListViewTests(TestCase):
         self.client.force_login(self.admin)
         content = (
             'name,role,email,class_name,seat_number,club_code,password\n'
-            'CSV Student,student,csv-student@example.com,401,3,CSV01,password\n'
-            'CSV Unassigned,student,csv-unassigned@example.com,402,4,,password\n'
-            'CSV Teacher,teacher,csv-teacher@example.com,,,,password\n'
+            '王柏翰,student,wang001@example.com,101,1,CSV01,test123\n'
+            '陳冠宇,student,chen002@example.com,101,2,,test123\n'
+            '林建宏,teacher,teacher001@example.com,,,,teacher123\n'
             'Bad Role,boss,bad-role@example.com,,,,password\n'
             'Bad Club,student,bad-club@example.com,403,5,CSV02,password\n'
         )
 
         response = self.client.post(
             reverse('account_admin_import'),
-            {'csv_file': csv_upload(content)},
+            {
+                'csv_file': uploaded_file(
+                    'excel-utf8.csv',
+                    content.encode('utf-8-sig'),
+                    'text/csv',
+                ),
+            },
         )
 
         self.assertEqual(response.status_code, 200)
@@ -789,15 +801,57 @@ class AccountAdminListViewTests(TestCase):
         self.assertEqual(result['created'], 3)
         self.assertEqual(result['updated'], 0)
         self.assertEqual(result['skipped'], 2)
-        student = User.objects.get(email='csv-student@example.com')
-        unassigned = User.objects.get(email='csv-unassigned@example.com')
-        teacher = User.objects.get(email='csv-teacher@example.com')
+        student = User.objects.get(email='wang001@example.com')
+        unassigned = User.objects.get(email='chen002@example.com')
+        teacher = User.objects.get(email='teacher001@example.com')
         self.assertEqual(student.role, 'student')
+        self.assertEqual(student.first_name, '王柏翰')
+        self.assertTrue(student.username.startswith('student'))
+        self.assertNotIn(student.username, ['wang001@example.com', '王柏翰'])
+        self.assertTrue(student.student_id.startswith('S'))
+        self.assertEqual(student.class_name, '101')
+        self.assertEqual(student.seat_number, 1)
         self.assertEqual(student.club, active_club)
+        self.assertNotEqual(student.password, 'test123')
+        self.assertTrue(student.check_password('test123'))
+        active_club.refresh_from_db()
+        self.assertEqual(active_club.current_members, 1)
+        self.assertEqual(unassigned.role, 'student')
         self.assertIsNone(unassigned.club)
+        self.assertTrue(unassigned.check_password('test123'))
         self.assertEqual(teacher.role, 'teacher')
+        self.assertEqual(teacher.first_name, '林建宏')
+        self.assertTrue(teacher.username.startswith('teacher'))
+        self.assertEqual(teacher.student_id, '')
+        self.assertEqual(teacher.class_name, '')
+        self.assertIsNone(teacher.seat_number)
+        self.assertIsNone(teacher.club)
+        self.assertNotEqual(teacher.password, 'teacher123')
+        self.assertTrue(teacher.check_password('teacher123'))
+        self.assertFalse(User.objects.filter(email='bad-role@example.com').exists())
         self.assertFalse(User.objects.filter(email='bad-club@example.com').exists())
+        self.assertContains(response, 'role must be student or teacher.')
         self.assertContains(response, 'Active Club.code=CSV02 not found.')
+
+    def test_account_csv_import_rejects_xlsx_upload(self):
+        self.client.force_login(self.admin)
+        user_count = User.objects.count()
+
+        response = self.client.post(
+            reverse('account_admin_import'),
+            {
+                'csv_file': uploaded_file(
+                    'accounts.xlsx',
+                    b'not a csv file',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context['result'])
+        self.assertEqual(User.objects.count(), user_count)
+        self.assertContains(response, '本系統不支援 .xlsx 檔案。請上傳 .csv 檔案。')
 
     def test_student_operations_from_account_management_return_to_account_list(self):
         self.client.force_login(self.admin)

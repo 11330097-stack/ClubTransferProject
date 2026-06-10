@@ -323,7 +323,16 @@ class ClubAdminForm(forms.ModelForm):
 
 
 class StudentCsvImportForm(forms.Form):
-    csv_file = forms.FileField(label='CSV 檔案')
+    csv_file = forms.FileField(
+        label='CSV 檔案',
+        widget=forms.ClearableFileInput(attrs={'accept': '.csv,text/csv'}),
+    )
+
+    def clean_csv_file(self):
+        csv_file = self.cleaned_data['csv_file']
+        if not csv_file.name.lower().endswith('.csv'):
+            raise forms.ValidationError('本系統不支援 .xlsx 檔案。請上傳 .csv 檔案。')
+        return csv_file
 
 
 class ClubCsvImportForm(forms.Form):
