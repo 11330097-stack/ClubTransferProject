@@ -15,7 +15,7 @@ REQUIRED_STUDENT_IMPORT_FIELDS = [
     'email',
     'class_name',
     'seat_number',
-    'club_code',
+    'club_name',
     'password',
 ]
 
@@ -29,9 +29,10 @@ REQUIRED_CLUB_IMPORT_FIELDS = [
 ]
 
 SAMPLE_STUDENT_IMPORT_CSV = (
-    'name,role,email,class_name,seat_number,club_code,password\n'
-    'Student One,student,student001@example.com,101,1,D001,student123\n'
-    'Teacher One,teacher,teacher001@example.com,,,,teacher123'
+    'name,role,email,class_name,seat_number,club_name,password\n'
+    '王柏翰,student,wang001@example.com,101,1,籃球社,test123\n'
+    '陳冠宇,student,chen002@example.com,101,2,,test123\n'
+    '林建宏,teacher,teacher001@example.com,,,,teacher123'
 )
 
 SAMPLE_CLUB_IMPORT_CSV = (
@@ -80,13 +81,13 @@ def import_students_from_csv(csv_file):
                 continue
 
             club = None
-            if cleaned['role'] == 'student' and cleaned['club_code']:
-                club = Club.objects.filter(code=cleaned['club_code'], is_active=True).first()
+            if cleaned['role'] == 'student' and cleaned['club_name']:
+                club = Club.objects.filter(name=cleaned['club_name'], is_active=True).first()
                 if club is None:
                     result['skipped'] += 1
                     result['errors'].append({
                         'row': row_number,
-                        'reason': f'Active Club.code={cleaned["club_code"]} not found.',
+                        'reason': f'Active Club.name={cleaned["club_name"]} not found.',
                     })
                     continue
 
@@ -341,7 +342,7 @@ def format_import_user_display_text(user):
 
 
 def validate_student_import_row(row):
-    required_values = ['username', 'student_id', 'class_name', 'seat_number', 'name', 'club_code']
+    required_values = ['username', 'student_id', 'class_name', 'seat_number', 'name', 'club_name']
     for field in required_values:
         if not row[field]:
             return f'{field} is required.'

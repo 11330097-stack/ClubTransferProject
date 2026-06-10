@@ -777,12 +777,12 @@ class AccountAdminListViewTests(TestCase):
         inactive_club = Club.objects.create(code='CSV02', name='CSV Inactive Club', is_active=False)
         self.client.force_login(self.admin)
         content = (
-            'name,role,email,class_name,seat_number,club_code,password\n'
-            '王柏翰,student,wang001@example.com,101,1,CSV01,test123\n'
+            'name,role,email,class_name,seat_number,club_name,password\n'
+            '王柏翰,student,wang001@example.com,101,1,CSV Active Club,test123\n'
             '陳冠宇,student,chen002@example.com,101,2,,test123\n'
             '林建宏,teacher,teacher001@example.com,,,,teacher123\n'
             'Bad Role,boss,bad-role@example.com,,,,password\n'
-            'Bad Club,student,bad-club@example.com,403,5,CSV02,password\n'
+            'Bad Club,student,bad-club@example.com,403,5,CSV Inactive Club,password\n'
         )
 
         response = self.client.post(
@@ -831,7 +831,7 @@ class AccountAdminListViewTests(TestCase):
         self.assertFalse(User.objects.filter(email='bad-role@example.com').exists())
         self.assertFalse(User.objects.filter(email='bad-club@example.com').exists())
         self.assertContains(response, 'role must be student or teacher.')
-        self.assertContains(response, 'Active Club.code=CSV02 not found.')
+        self.assertContains(response, 'Active Club.name=CSV Inactive Club not found.')
 
     def test_account_csv_import_rejects_xlsx_upload(self):
         self.client.force_login(self.admin)
