@@ -4,7 +4,10 @@
 {% block title %}未分配帳號{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">未分配帳號</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">未分配帳號</h1>
+    <a href="{% url 'assignment_record_list' %}" class="btn btn-outline-secondary btn-sm">分配紀錄</a>
+</div>
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-sm-8 col-md-6">

@@ -29,6 +29,7 @@ urlpatterns = [
     path('admin-panel/accounts/bulk/delete/', views.AccountAdminBulkDeleteView.as_view(), name='account_admin_bulk_delete'),
     path('admin-panel/accounts/<int:pk>/promote-president/', views.AccountAdminPromotePresidentView.as_view(), name='account_admin_promote_president'),
     path('admin-panel/unassigned/accounts/', views.UnassignedAccountListView.as_view(), name='unassigned_account_list'),
+    path('admin-panel/unassigned/assignment-records/', views.AssignmentRecordListView.as_view(), name='assignment_record_list'),
     path('admin-panel/unassigned/students/bulk/assign-club/', views.UnassignedStudentBulkAssignClubView.as_view(), name='unassigned_student_bulk_assign_club'),
     path('admin-panel/unassigned/students/<int:pk>/assign-club/', views.UnassignedStudentAssignClubView.as_view(), name='unassigned_student_assign_club'),
     path('admin-panel/teachers/', views.TeacherAdminListView.as_view(), name='teacher_admin_list'),

@@ -20,6 +20,8 @@ def user_is_club_president(user, club):
 
 @register.filter
 def display_role(user):
+    if getattr(user, 'role', None) == 'admin':
+        return '訓育組長'
     if getattr(user, 'role', None) == 'president' and not user_is_club_president(user, user.club):
         return '學生'
     return user.get_role_display()

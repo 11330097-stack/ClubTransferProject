@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load account_extras %}
+
+{% block title %}分配紀錄{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">分配紀錄</h1>
+    <a href="{% url 'unassigned_account_list' %}" class="btn btn-outline-secondary btn-sm">返回未分配帳號</a>
+</div>
+
+{% if records %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>學生姓名</th>
+                    <th>原社團</th>
+                    <th>新社團</th>
+                    <th>操作類型</th>
+                    <th>操作時間</th>
+                    <th>操作者</th>
+                    <th>來源</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                    <tr>
+                        <td>{{ record.student_name }}</td>
+                        <td>{{ record.original_club_name }}</td>
+                        <td>{{ record.target_club_name }}</td>
+                        <td>{{ record.operation_type }}</td>
+                        <td>{{ record.operated_at|date:"Y/m/d H:i" }}</td>
+                        <td>
+                            {% if record.operator %}
+                                {{ record.operator.get_full_name|default:record.operator.username }}
+                                {% if record.operator.role == 'admin' %}
+                                    ({{ record.operator|display_role }})
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.source %}
+                                <a href="{% url 'request_detail' record.source.pk %}" class="btn btn-sm btn-outline-primary">查看申請</a>
+                            {% else %}
+                                未分配帳號
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="alert alert-info mb-0">
+        目前尚未建立專用分配紀錄資料表；直接分配紀錄會暫存於 Django admin log。現在暫無可顯示紀錄。
+    </div>
+{% endif %}
+{% endblock %}

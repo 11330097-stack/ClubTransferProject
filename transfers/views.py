@@ -466,3 +466,17 @@ class DeleteRequestRecordView(LoginRequiredMixin, AdminRequiredMixin, View):
 
         messages.success(request, f'申請紀錄 #{request_id} 已刪除。')
         return redirect('all_requests')
+
+
+class DeleteAllRequestRecordsView(LoginRequiredMixin, AdminRequiredMixin, View):
+    def post(self, request):
+        request_ids = list(TransferRequest.objects.values_list('pk', flat=True))
+        deleted_count = len(request_ids)
+
+        if deleted_count:
+            with transaction.atomic():
+                ApprovalLog.objects.filter(transfer_request_id__in=request_ids).delete()
+                TransferRequest.objects.filter(pk__in=request_ids).delete()
+
+        messages.success(request, f'已刪除 {deleted_count} 筆全校申請紀錄。')
+        return redirect('all_requests')

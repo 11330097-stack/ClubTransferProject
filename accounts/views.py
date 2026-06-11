@@ -1,8 +1,12 @@
+import json
+
 from django.contrib import messages
+from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -46,6 +50,9 @@ from .services import (
     safely_delete_student,
     safely_delete_teacher,
 )
+
+
+ASSIGNMENT_LOG_MARKER = 'unassigned_account_assignment'
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
@@ -156,14 +163,17 @@ class HomeView(TemplateView):
             'student_count': UserModel.objects.filter(
                 role='student',
                 is_superuser=False,
+                is_active=True,
             ).exclude(role='admin').count(),
             'president_count': UserModel.objects.filter(
                 role='president',
                 is_superuser=False,
+                is_active=True,
             ).exclude(role='admin').count(),
             'teacher_count': UserModel.objects.filter(
                 role='teacher',
                 is_superuser=False,
+                is_active=True,
             ).exclude(role='admin').count(),
             'inactive_account_count': UserModel.objects.filter(
                 is_active=False,
@@ -447,10 +457,11 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         context['q'] = self.request.GET.get('q', '').strip()
         context['selected_role'] = self.request.GET.get('role', '').strip()
         non_admin_accounts = User.objects.filter(is_superuser=False).exclude(role='admin')
+        active_non_admin_accounts = non_admin_accounts.filter(is_active=True)
         context['account_stats'] = {
-            'president_count': non_admin_accounts.filter(role='president').count(),
-            'student_count': non_admin_accounts.filter(role='student').count(),
-            'teacher_count': non_admin_accounts.filter(role='teacher').count(),
+            'president_count': active_non_admin_accounts.filter(role='president').count(),
+            'student_count': active_non_admin_accounts.filter(role='student').count(),
+            'teacher_count': active_non_admin_accounts.filter(role='teacher').count(),
             'inactive_count': non_admin_accounts.filter(is_active=False).count(),
         }
         account_search_options = []
@@ -642,6 +653,94 @@ class UnassignedAccountListView(LoginRequiredMixin, AdminRequiredMixin, ListView
         return context
 
 
+def create_assignment_log(operator, student, club):
+    """Persist unassigned-account assignments without adding a project model."""
+    change_message = {
+        'type': ASSIGNMENT_LOG_MARKER,
+        'student_id': student.pk,
+        'student_name': student.get_full_name() or student.first_name or student.username,
+        'original_club': '未分配',
+        'target_club_id': club.pk,
+        'target_club_name': club.name,
+        'operation_type': '分配',
+    }
+    LogEntry.objects.create(
+        user_id=operator.pk,
+        content_type=ContentType.objects.get_for_model(User),
+        object_id=str(student.pk),
+        object_repr=str(student)[:200],
+        action_flag=CHANGE,
+        change_message=json.dumps(change_message, ensure_ascii=False),
+    )
+
+
+def parse_assignment_log(log_entry):
+    try:
+        message = json.loads(log_entry.change_message or '{}')
+    except json.JSONDecodeError:
+        return None
+
+    if message.get('type') != ASSIGNMENT_LOG_MARKER:
+        return None
+
+    return {
+        'student_name': message.get('student_name') or log_entry.object_repr,
+        'original_club_name': message.get('original_club') or '未分配',
+        'target_club_name': message.get('target_club_name') or '-',
+        'operation_type': message.get('operation_type') or '分配',
+        'operated_at': log_entry.action_time,
+        'operator': log_entry.user,
+        'source': None,
+    }
+
+
+class AssignmentRecordListView(LoginRequiredMixin, AdminRequiredMixin, TemplateView):
+    template_name = 'accounts/assignment_record_list.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        transfer_requests = TransferRequest.objects.filter(
+            status='approved',
+        ).select_related(
+            'student',
+            'original_club',
+            'target_club',
+        ).order_by('-completed_at', '-updated_at', '-created_at')
+
+        records = []
+        for transfer_request in transfer_requests:
+            latest_log = transfer_request.approval_logs.select_related('approver').order_by('-created_at').first()
+            records.append({
+                'student_name': transfer_request.student.get_full_name() or transfer_request.student.username,
+                'original_club_name': transfer_request.original_club.name,
+                'target_club_name': transfer_request.target_club.name,
+                'operation_type': '轉社',
+                'operated_at': (
+                    transfer_request.completed_at
+                    or transfer_request.updated_at
+                    or transfer_request.created_at
+                ),
+                'operator': latest_log.approver if latest_log else None,
+                'source': transfer_request,
+            })
+
+        user_content_type = ContentType.objects.get_for_model(User)
+        assignment_logs = LogEntry.objects.filter(
+            content_type=user_content_type,
+            action_flag=CHANGE,
+            change_message__contains=ASSIGNMENT_LOG_MARKER,
+        ).select_related('user').order_by('-action_time')
+
+        for log_entry in assignment_logs:
+            record = parse_assignment_log(log_entry)
+            if record:
+                records.append(record)
+
+        records.sort(key=lambda record: record['operated_at'], reverse=True)
+        context['records'] = records
+        return context
+
+
 class UnassignedStudentAssignClubView(LoginRequiredMixin, AdminRequiredMixin, View):
     def post(self, request, pk):
         student = get_object_or_404(
@@ -654,11 +753,25 @@ class UnassignedStudentAssignClubView(LoginRequiredMixin, AdminRequiredMixin, Vi
         club = get_object_or_404(Club, pk=request.POST.get('club_id'), is_active=True)
 
         with transaction.atomic():
+            student = get_object_or_404(
+                User.objects.select_for_update(),
+                pk=student.pk,
+                role='student',
+                is_active=True,
+                club__isnull=True,
+            )
+            club = Club.objects.select_for_update().get(pk=club.pk, is_active=True)
+            if club.current_members >= club.max_members:
+                messages.warning(request, f'{club.name} 人數已滿，無法分配。')
+                return redirect('unassigned_account_list')
+
             student.club = club
             student.save(update_fields=['club'])
+            create_assignment_log(request.user, student, club)
             recalculate_club_current_members()
 
-        messages.success(request, f'已將 {student.username} 分配到 {club.name}。')
+        student_name = student.get_full_name() or student.first_name or student.username
+        messages.success(request, f'已將 {student_name} 分配至 {club.name}，並更新分配紀錄。')
         return redirect('unassigned_account_list')
 
 
@@ -677,27 +790,31 @@ class UnassignedStudentBulkAssignClubView(LoginRequiredMixin, AdminRequiredMixin
 
         with transaction.atomic():
             club = get_object_or_404(Club.objects.select_for_update(), pk=club_id, is_active=True)
+            unique_student_ids = set(student_ids)
             students = list(
                 User.objects.select_for_update().filter(
-                    pk__in=student_ids,
+                    pk__in=unique_student_ids,
                     role='student',
                     is_active=True,
                     club__isnull=True,
                 )
             )
 
-            if not students:
-                messages.error(request, '請先選取學生。')
+            if len(students) != len(unique_student_ids):
+                messages.error(request, '選取的帳號包含非學生、已分配或已停用帳號，無法分配。')
                 return redirect('unassigned_account_list')
 
             if club.current_members + len(students) > club.max_members:
-                messages.warning(request, '超過社團人數上限')
+                messages.warning(request, f'{club.name} 人數已滿，無法分配。')
                 return redirect('unassigned_account_list')
 
             User.objects.filter(pk__in=[student.pk for student in students]).update(club=club)
+            for student in students:
+                student.club = club
+                create_assignment_log(request.user, student, club)
             recalculate_club_current_members()
 
-        messages.success(request, f'已將 {len(students)} 位學生分配到 {club.name}。')
+        messages.success(request, f'已將 {len(students)} 位學生分配至 {club.name}，並更新分配紀錄。')
         return redirect('unassigned_account_list')
 
 

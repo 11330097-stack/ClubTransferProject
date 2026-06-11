@@ -75,6 +75,7 @@ class StudentAccountForm(forms.ModelForm):
         else:
             self.fields['role'].choices = [('student', 'student')]
             self.fields['role'].initial = 'student'
+        self.fields['club'].queryset = Club.objects.filter(is_active=True).order_by('code', 'name')
         self.fields['password'].required = self.is_create
         if self.instance.pk:
             self.fields.pop('username', None)
