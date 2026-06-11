@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}新增帳號 CSV{% endblock %}
+{% block title %}匯入帳號 CSV{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">新增帳號 CSV</h1>
+    <h1 class="h3 mb-0">匯入帳號 CSV</h1>
     <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回帳號管理</a>
 </div>
 
@@ -19,7 +19,7 @@
 <div class="card card-body mb-3">
     <h2 class="h5">CSV 格式</h2>
     <p class="mb-2">CSV 欄位需包含：</p>
-    <p class="mb-2">name, role, email, class_name, seat_number, club_name, password</p>
+    <p class="mb-2">姓名、身分、email、學號、班級、座號、社團</p>
     <p class="mb-2">請使用 Excel 的：</p>
     <p class="mb-2">「另存新檔 → CSV UTF-8（逗號分隔） (*.csv)」</p>
     <p class="mb-0">本系統不支援 .xlsx 檔案。</p>
