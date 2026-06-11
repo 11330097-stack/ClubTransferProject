@@ -5,56 +5,58 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">匯入社團 CSV</h1>
-    <a class="btn btn-outline-secondary btn-sm" href="{% url 'club_admin_list' %}">返回社團管理</a>
+    <a href="{% url 'club_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回社團管理</a>
 </div>
 
-<div class="alert alert-info">
-    <p class="mb-0">CSV 欄位：name,teacher_username,president_username,location,max_members,description</p>
-</div>
-
-<form method="post" enctype="multipart/form-data" class="mb-4">
+<form method="post" enctype="multipart/form-data" class="card card-body mb-3">
     {% csrf_token %}
     {{ form.as_p }}
-    <button type="submit" class="btn btn-primary">匯入</button>
+    <div>
+        <button type="submit" class="btn btn-primary">匯入</button>
+    </div>
 </form>
 
-<h2 class="h5">CSV 範例</h2>
-<pre class="bg-light border rounded p-3"><code>{{ sample_csv }}</code></pre>
+<div class="card card-body mb-3">
+    <h2 class="h5">CSV 格式說明</h2>
+    <p class="mb-2">CSV 欄位需包含：</p>
+    <p class="mb-2">name, teacher_username, president_username, location, max_members, description</p>
+    <p class="mb-2">請使用 Excel 另存新檔。</p>
+    <p class="mb-2">存檔類型請選擇 CSV UTF-8（逗號分隔）(*.csv)。</p>
+    <p class="mb-3">不要上傳 .xlsx 檔案。</p>
+    <pre class="bg-light border rounded p-3 mb-0"><code>{{ sample_csv }}</code></pre>
+</div>
 
 {% if result %}
-    <div class="card mb-3">
-        <div class="card-header">匯入結果</div>
-        <div class="card-body">
-            <dl class="row mb-0">
-                <dt class="col-sm-2">新增</dt>
-                <dd class="col-sm-10">{{ result.created }}</dd>
-                <dt class="col-sm-2">更新</dt>
-                <dd class="col-sm-10">{{ result.updated }}</dd>
-                <dt class="col-sm-2">跳過</dt>
-                <dd class="col-sm-10">{{ result.skipped }}</dd>
-            </dl>
-        </div>
+    <div class="card card-body mb-3">
+        <h2 class="h5">匯入結果</h2>
+        <ul class="mb-0">
+            <li>新增：{{ result.created }} 筆</li>
+            <li>更新：{{ result.updated }} 筆</li>
+            <li>略過：{{ result.skipped }} 筆</li>
+        </ul>
     </div>
 
     {% if result.errors %}
-        <h2 class="h5">錯誤列</h2>
-        <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle">
-                <thead>
-                    <tr>
-                        <th>列號</th>
-                        <th>原因</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for error in result.errors %}
+        <div class="card card-body">
+            <h2 class="h5">錯誤</h2>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                    <thead>
                         <tr>
-                            <td>{{ error.row }}</td>
-                            <td>{{ error.reason }}</td>
+                            <th>列號</th>
+                            <th>原因</th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for error in result.errors %}
+                            <tr>
+                                <td>{{ error.row }}</td>
+                                <td>{{ error.reason }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     {% endif %}
 {% endif %}

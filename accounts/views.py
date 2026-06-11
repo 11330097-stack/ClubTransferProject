@@ -435,6 +435,7 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         if query:
             queryset = queryset.filter(
                 Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
                 | Q(student_id__icontains=query)
                 | Q(email__icontains=query)
             )
@@ -452,6 +453,13 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
             'teacher_count': non_admin_accounts.filter(role='teacher').count(),
             'inactive_count': non_admin_accounts.filter(is_active=False).count(),
         }
+        account_search_options = []
+        for account in non_admin_accounts.filter(role__in=self.allowed_roles).order_by('first_name', 'email', 'student_id'):
+            for value in (account.first_name, account.last_name, account.email, account.student_id):
+                value = (value or '').strip()
+                if value and value not in account_search_options:
+                    account_search_options.append(value)
+        context['account_search_options'] = account_search_options
         context['role_options'] = [
             ('', '全部'),
             ('student', '學生'),
@@ -834,17 +842,13 @@ class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         queryset = Club.objects.all().order_by('-is_active', 'code', 'name')
         query = self.request.GET.get('q', '').strip()
         if query:
-            queryset = queryset.filter(
-                Q(code__icontains=query)
-                | Q(name__icontains=query)
-                | Q(teacher__icontains=query)
-                | Q(president__icontains=query)
-            )
+            queryset = queryset.filter(name__icontains=query)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['q'] = self.request.GET.get('q', '').strip()
+        context['club_name_options'] = Club.objects.order_by('name').values_list('name', flat=True)
         return context
 
 
