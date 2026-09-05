@@ -23,17 +23,26 @@ def display_text_matches_user(value, user):
 
 
 def is_actual_club_president(user):
-    if not user or not user.is_authenticated or getattr(user, 'role', None) != 'president':
+    if (
+        not user
+        or not user.is_authenticated
+        or not user.is_active
+        or getattr(user, 'role', None) != 'president'
+        or not user.club_id
+    ):
         return False
 
-    return any(
-        display_text_matches_user(club.president, user)
-        for club in Club.objects.filter(is_active=True).exclude(president='')
-    )
+    club = Club.objects.filter(pk=user.club_id, is_active=True).exclude(president='').first()
+    return bool(club and display_text_matches_user(club.president, user))
 
 
 def is_assigned_club_teacher(user):
-    if not user or not user.is_authenticated or getattr(user, 'role', None) != 'teacher':
+    if (
+        not user
+        or not user.is_authenticated
+        or not user.is_active
+        or getattr(user, 'role', None) != 'teacher'
+    ):
         return False
 
     return any(

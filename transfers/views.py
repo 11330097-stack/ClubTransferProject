@@ -3,7 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.contrib import messages
-from django.db import transaction, models
+from django.db import IntegrityError, transaction, models
 from django.utils import timezone
 from django.core.exceptions import PermissionDenied
 from .models import TransferRequest, ApprovalLog
@@ -20,6 +20,28 @@ REVIEWABLE_STATUSES = [
     'new_teacher_pending',
     'admin_pending',
 ]
+ACTIVE_REQUEST_STATUSES = REVIEWABLE_STATUSES + ['returned']
+
+
+def get_transfer_state_error(transfer_request):
+    student = transfer_request.student
+    if not student.is_active or student.role != 'student':
+        return '申請學生已停用或身分已變更，無法繼續審核。'
+    if student.club_id != transfer_request.original_club_id:
+        return '申請學生已不屬於原社團，無法繼續審核。'
+    if transfer_request.original_club_id == transfer_request.target_club_id:
+        return '原社團與目標社團不可相同。'
+    if not transfer_request.original_club.is_active:
+        return '原社團已停用，無法繼續審核。'
+    if not transfer_request.target_club.is_active:
+        return '目標社團已停用，無法繼續審核。'
+    return None
+
+
+def sync_member_counts(*clubs):
+    for club in {club.pk: club for club in clubs}.values():
+        club.current_members = club.get_actual_member_count()
+        club.save(update_fields=['current_members'])
 
 
 class StudentRequiredMixin(UserPassesTestMixin):
@@ -86,16 +108,17 @@ class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, Tran
         user = self.request.user
         
         # 防錯機制：過濾掉原社團和已滿的社團
-        if user.club:
-            available_clubs = Club.objects.filter(
-                is_active=True,
-                current_members__lt=models.F('max_members')
-            ).exclude(id=user.club.id)
-        else:
-            available_clubs = Club.objects.filter(
-                is_active=True,
-                current_members__lt=models.F('max_members')
+        available_clubs = Club.objects.filter(is_active=True).annotate(
+            actual_members=models.Count(
+                'members',
+                filter=models.Q(
+                    members__role__in=['student', 'president'],
+                    members__is_active=True,
+                ),
             )
+        ).filter(actual_members__lt=models.F('max_members'))
+        if user.club:
+            available_clubs = available_clubs.exclude(id=user.club.id)
         
         form.fields['target_club'].queryset = available_clubs
         form.fields['target_club'].label = '目標社團'
@@ -110,36 +133,53 @@ class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, Tran
         return form
     
     def form_valid(self, form):
-        user = self.request.user
+        try:
+            with transaction.atomic():
+                user = User.objects.select_for_update().select_related('club').get(
+                    pk=self.request.user.pk
+                )
+                if not user.is_active or user.role != 'student':
+                    messages.error(self.request, '目前帳號狀態無法提出轉社申請。')
+                    return redirect('home')
+                if not user.club_id:
+                    messages.error(self.request, '您目前沒有所屬社團，無法申請轉社')
+                    return redirect('transfer_apply')
 
-        if user.role == 'president':
-            messages.error(self.request, '社長目前不可申請轉社，請先完成社長交接')
-            return redirect('home')
-        
-        if not user.club:
-            messages.error(self.request, '您目前沒有所屬社團，無法申請轉社')
-            return redirect('transfer_apply')
-        
-        # 檢查是否有進行中的申請
-        existing = TransferRequest.objects.filter(
-            student=user,
-            status__in=['orig_president_pending', 'orig_teacher_pending', 
-                       'new_president_pending', 'new_teacher_pending', 
-                       'admin_pending', 'returned']
-        ).first()
-        
-        if existing:
-            messages.error(self.request, f'您已有進行中的轉社申請（{existing.get_status_display()}），請先完成或取消該申請')
+                original_club = Club.objects.select_for_update().get(pk=user.club_id)
+                target_club = Club.objects.select_for_update().filter(
+                    pk=form.cleaned_data['target_club'].pk,
+                    is_active=True,
+                ).first()
+                if not original_club.is_active:
+                    messages.error(self.request, '原社團已停用，無法提出轉社申請。')
+                    return redirect('my_requests')
+                if not target_club or target_club.pk == original_club.pk:
+                    messages.error(self.request, '目標社團無效或與原社團相同。')
+                    return redirect('transfer_apply')
+                if target_club.get_actual_member_count() >= target_club.max_members:
+                    messages.error(self.request, '目標社團已額滿。')
+                    return redirect('transfer_apply')
+
+                existing = TransferRequest.objects.select_for_update().filter(
+                    student=user,
+                    status__in=ACTIVE_REQUEST_STATUSES,
+                ).first()
+                if existing:
+                    messages.error(
+                        self.request,
+                        f'您已有進行中的轉社申請（{existing.get_status_display()}），請先完成或取消該申請',
+                    )
+                    return redirect('my_requests')
+
+                form.instance.student = user
+                form.instance.original_club = original_club
+                form.instance.target_club = target_club
+                form.instance.status = 'orig_president_pending'
+                response = super().form_valid(form)
+                form.instance.send_notification()
+        except IntegrityError:
+            messages.error(self.request, '您已有進行中的轉社申請，請勿重複送出。')
             return redirect('my_requests')
-        
-        form.instance.student = user
-        form.instance.original_club = user.club
-        form.instance.status = 'orig_president_pending'
-        
-        response = super().form_valid(form)
-        
-        # 發送通知給原社長
-        form.instance.send_notification()
         
         messages.success(self.request, '轉社申請已成功提交，等待原社長審核')
         return response
@@ -199,7 +239,7 @@ class RequestDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
-class ReselectClubView(LoginRequiredMixin, StudentRequiredMixin, UpdateView):
+class ReselectClubView(LoginRequiredMixin, TransferApplicantRequiredMixin, UpdateView):
     """
     退回重選新社團
     """
@@ -218,9 +258,16 @@ class ReselectClubView(LoginRequiredMixin, StudentRequiredMixin, UpdateView):
         form = super().get_form(form_class)
         
         # 過濾可選社團
-        available_clubs = Club.objects.filter(
-            is_active=True,
-            current_members__lt=models.F('max_members')
+        available_clubs = Club.objects.filter(is_active=True).annotate(
+            actual_members=models.Count(
+                'members',
+                filter=models.Q(
+                    members__role__in=['student', 'president'],
+                    members__is_active=True,
+                ),
+            )
+        ).filter(
+            actual_members__lt=models.F('max_members')
         ).exclude(id=self.object.original_club.id)
         
         form.fields['target_club'].queryset = available_clubs
@@ -229,15 +276,40 @@ class ReselectClubView(LoginRequiredMixin, StudentRequiredMixin, UpdateView):
         return form
     
     def form_valid(self, form):
-        # 清除之前新社團的審核紀錄
-        self.object.approval_logs.filter(
-            approval_stage__in=['new_president_pending', 'new_teacher_pending']
-        ).delete()
-        
-        # 重新進入新社長審核階段
-        self.object.status = 'new_president_pending'
-        self.object.save()
-        self.object.send_notification()
+        with transaction.atomic():
+            transfer_request = TransferRequest.objects.select_for_update().select_related(
+                'student', 'original_club', 'target_club'
+            ).get(pk=self.object.pk, student=self.request.user, status='returned')
+            student = User.objects.select_for_update().get(pk=self.request.user.pk)
+            original_club = Club.objects.select_for_update().get(
+                pk=transfer_request.original_club_id
+            )
+            target_club = Club.objects.select_for_update().filter(
+                pk=form.cleaned_data['target_club'].pk,
+                is_active=True,
+            ).first()
+
+            if not student.is_active or student.role != 'student' or student.club_id != original_club.pk:
+                messages.error(self.request, '您的帳號或社團狀態已變更，無法重新選擇社團。')
+                return redirect('my_requests')
+            if not original_club.is_active:
+                messages.error(self.request, '原社團已停用，無法重新選擇社團。')
+                return redirect('my_requests')
+            if not target_club or target_club.pk == original_club.pk:
+                messages.error(self.request, '目標社團無效或與原社團相同。')
+                return redirect('my_requests')
+            if target_club.get_actual_member_count() >= target_club.max_members:
+                messages.error(self.request, '目標社團已額滿。')
+                return redirect('my_requests')
+
+            transfer_request.approval_logs.filter(
+                approval_stage__in=['new_president_pending', 'new_teacher_pending']
+            ).delete()
+            transfer_request.target_club = target_club
+            transfer_request.status = 'new_president_pending'
+            transfer_request.save(update_fields=['target_club', 'status', 'updated_at'])
+            transfer_request.send_notification()
+            self.object = transfer_request
         
         messages.success(self.request, '已重新選擇目標社團，等待新社長審核')
         return redirect('my_requests')
@@ -265,10 +337,12 @@ class PendingApprovalsView(LoginRequiredMixin, ApproverRequiredMixin, ListView):
             return TransferRequest.objects.filter(
                 models.Q(
                     status='orig_president_pending',
+                    original_club_id=user.club_id,
                     original_club__president__icontains=username_marker,
                 ) |
                 models.Q(
                     status='new_president_pending',
+                    target_club_id=user.club_id,
                     target_club__president__icontains=username_marker,
                 )
             ).distinct()
@@ -295,12 +369,28 @@ class ApproveRequestView(LoginRequiredMixin, View):
     def post(self, request, pk):
         with transaction.atomic():
             transfer_request = get_object_or_404(
-                TransferRequest.objects.select_for_update(),
+                TransferRequest.objects.select_for_update().select_related(
+                    'student', 'original_club', 'target_club'
+                ),
                 pk=pk,
             )
 
             if transfer_request.status not in REVIEWABLE_STATUSES:
                 messages.error(request, '此申請目前不能審核，可能已核准、拒絕或退回。')
+                return redirect('pending_approvals')
+
+            transfer_request.student = User.objects.select_for_update().get(
+                pk=transfer_request.student_id
+            )
+            transfer_request.original_club = Club.objects.select_for_update().get(
+                pk=transfer_request.original_club_id
+            )
+            transfer_request.target_club = Club.objects.select_for_update().get(
+                pk=transfer_request.target_club_id
+            )
+            state_error = get_transfer_state_error(transfer_request)
+            if state_error:
+                messages.error(request, state_error)
                 return redirect('pending_approvals')
 
             if (
@@ -317,24 +407,17 @@ class ApproveRequestView(LoginRequiredMixin, View):
 
             # 最後核准階段：更新社團人數
             if transfer_request.status == 'admin_pending':
-                transfer_request.target_club = Club.objects.select_for_update().get(
-                    pk=transfer_request.target_club_id
-                )
-                transfer_request.original_club = Club.objects.select_for_update().get(
-                    pk=transfer_request.original_club_id
-                )
-
                 if not transfer_request.target_club.has_available_slots():
                     messages.error(request, '目標社團已額滿，無法核准此轉社申請。')
                     return redirect('pending_approvals')
 
-                transfer_request.original_club.decrement_members()
-                transfer_request.target_club.increment_members()
-                
-                # 更新學生所屬社團
                 student = transfer_request.student
                 student.club = transfer_request.target_club
-                student.save()
+                student.save(update_fields=['club'])
+                sync_member_counts(
+                    transfer_request.original_club,
+                    transfer_request.target_club,
+                )
                 
                 transfer_request.completed_at = timezone.now()
             

@@ -1,5 +1,6 @@
 import re
 
+from django.db.models import Count, Q
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from transfers.models import get_user_from_display_text
@@ -19,7 +20,15 @@ class ClubListView(LoginRequiredMixin, ListView):
     context_object_name = 'clubs'
     
     def get_queryset(self):
-        queryset = Club.objects.filter(is_active=True)
+        queryset = Club.objects.filter(is_active=True).annotate(
+            actual_member_count=Count(
+                'members',
+                filter=Q(
+                    members__role__in=['student', 'president'],
+                    members__is_active=True,
+                ),
+            )
+        )
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(name__icontains=query)
@@ -38,6 +47,7 @@ class ClubListView(LoginRequiredMixin, ListView):
                 'club': club,
                 'teacher_name': display_name_without_username(club.teacher),
                 'president_name': display_name_without_username(club.president),
+                'actual_member_count': club.actual_member_count,
                 'remaining_slots': club.get_remaining_slots(),
             })
 
@@ -64,6 +74,7 @@ class ClubDetailView(LoginRequiredMixin, DetailView):
         
         context['pending_count'] = pending_count
         context['remaining_slots'] = club.get_remaining_slots()
+        context['actual_member_count'] = club.get_actual_member_count()
         president = get_user_from_display_text(club.president)
         members = list(club.members.all())
         context['members'] = sorted(

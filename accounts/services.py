@@ -48,6 +48,14 @@ SAMPLE_CLUB_IMPORT_CSV = (
     'code,name,teacher_username,president_username,location,max_members,description\n'
     'C001,籃球社,teacher.demo,s000001,體育館,30,籃球訓練與比賽'
 )
+ACTIVE_TRANSFER_STATUSES = [
+    'orig_president_pending',
+    'orig_teacher_pending',
+    'new_president_pending',
+    'new_teacher_pending',
+    'admin_pending',
+    'returned',
+]
 
 
 def import_students_from_csv(csv_file):
@@ -76,6 +84,8 @@ def import_students_from_csv(csv_file):
         })
         return result
 
+    seen_login_ids = set()
+    seen_emails = set()
     with transaction.atomic():
         for row_number, row in enumerate(reader, start=2):
             cleaned = {
@@ -88,6 +98,21 @@ def import_students_from_csv(csv_file):
                 result['errors'].append({'row': row_number, 'reason': error})
                 continue
 
+            if cleaned['login_id'] in seen_login_ids:
+                result['skipped'] += 1
+                result['errors'].append({
+                    'row': row_number,
+                    'reason': 'duplicate login_id in this CSV file.',
+                })
+                continue
+            if cleaned['email'] and cleaned['email'] in seen_emails:
+                result['skipped'] += 1
+                result['errors'].append({
+                    'row': row_number,
+                    'reason': 'duplicate email in this CSV file.',
+                })
+                continue
+
             user, created, error = resolve_account_import_user(cleaned)
             if error:
                 result['skipped'] += 1
@@ -96,7 +121,9 @@ def import_students_from_csv(csv_file):
 
             club = None
             if cleaned['role'] == 'student' and cleaned['club_name']:
-                club = Club.objects.filter(name=cleaned['club_name'], is_active=True).first()
+                club = Club.objects.select_for_update().filter(
+                    name=cleaned['club_name'], is_active=True
+                ).first()
                 if club is None:
                     result['skipped'] += 1
                     result['errors'].append({
@@ -104,11 +131,24 @@ def import_students_from_csv(csv_file):
                         'reason': f'Active Club.name={cleaned["club_name"]} not found.',
                     })
                     continue
-                assigned_count = User.objects.filter(
-                    club=club,
-                    role__in=['student', 'president'],
-                    is_active=True,
-                ).exclude(pk=user.pk if user.pk else None).count()
+
+            if (
+                not created
+                and cleaned['role'] == 'student'
+                and user.club_id != (club.pk if club else None)
+                and has_active_transfer(user)
+            ):
+                result['skipped'] += 1
+                result['errors'].append({
+                    'row': row_number,
+                    'reason': 'student has an active transfer request; club cannot be changed.',
+                })
+                continue
+
+            if club:
+                assigned_count = club.get_actual_member_count(
+                    exclude_user_id=user.pk if user.pk else None
+                )
                 if assigned_count >= club.max_members:
                     result['skipped'] += 1
                     result['errors'].append({
@@ -130,6 +170,9 @@ def import_students_from_csv(csv_file):
                 result['created'] += 1
             else:
                 result['updated'] += 1
+            seen_login_ids.add(cleaned['login_id'])
+            if cleaned['email']:
+                seen_emails.add(cleaned['email'])
 
         recalculate_club_current_members()
 
@@ -220,6 +263,8 @@ def resolve_account_import_user(row):
         )
         if not compatible:
             return None, False, 'existing account has an incompatible role.'
+        if user.role == 'president':
+            return None, False, 'president accounts must be updated through the club workflow.'
         return user, False, None
 
     return User(username=row['login_id'], role=row['role']), True, None
@@ -289,12 +334,21 @@ def import_clubs_from_csv(csv_file):
         })
         return result
 
+    seen_codes = set()
     with transaction.atomic():
         for row_number, row in enumerate(reader, start=2):
             cleaned = {
                 field: (row.get(field) or '').strip()
                 for field in REQUIRED_CLUB_IMPORT_FIELDS + OPTIONAL_CLUB_IMPORT_FIELDS
             }
+
+            if cleaned['code'] in seen_codes:
+                result['skipped'] += 1
+                result['errors'].append({
+                    'row': row_number,
+                    'reason': 'duplicate code in this CSV file.',
+                })
+                continue
 
             existing_club = Club.objects.filter(code=cleaned['code']).first()
             teacher, president, error = validate_club_import_row(cleaned, existing_club)
@@ -349,6 +403,7 @@ def import_clubs_from_csv(csv_file):
                 result['created'] += 1
             else:
                 result['updated'] += 1
+            seen_codes.add(cleaned['code'])
 
         recalculate_club_current_members()
 
@@ -370,43 +425,50 @@ def validate_club_import_row(row, existing_club=None):
 
     teacher = None
     teacher_identity = row.get('teacher_email') or row.get('teacher_username')
-    if teacher_identity:
-        teacher = (
-            User.objects.filter(email__iexact=teacher_identity).first()
-            if row.get('teacher_email')
-            else User.objects.filter(username=teacher_identity).first()
+    if not teacher_identity:
+        return None, None, 'teacher is required for an active club.'
+    teacher = (
+        User.objects.filter(email__iexact=teacher_identity).first()
+        if row.get('teacher_email')
+        else User.objects.filter(username__iexact=teacher_identity).first()
+    )
+    if not teacher or teacher.role != 'teacher' or not teacher.is_active:
+        return None, None, (
+            f'teacher={teacher_identity} must be an active teacher.'
         )
-        if not teacher or teacher.role != 'teacher' or not teacher.is_active:
-            return None, None, (
-                f'teacher={teacher_identity} must be an active teacher.'
-            )
 
     president = None
     president_identity = row.get('president_email') or row.get('president_username')
-    if president_identity:
-        president = (
-            User.objects.filter(email__iexact=president_identity).first()
-            if row.get('president_email')
-            else User.objects.filter(username=president_identity).first()
+    if not president_identity:
+        return None, None, 'president is required for an active club.'
+    president = (
+        User.objects.filter(email__iexact=president_identity).first()
+        if row.get('president_email')
+        else User.objects.filter(username__iexact=president_identity).first()
+    )
+    is_current_president = (
+        existing_club
+        and president
+        and president.role == 'president'
+        and president.is_active
+        and president.club_id == existing_club.pk
+    )
+    is_available_student = (
+        president
+        and president.role == 'student'
+        and president.is_active
+        and president.club_id is None
+    )
+    if not is_current_president and not is_available_student:
+        return None, None, (
+            f'president={president_identity} '
+            'must be an active unassigned student.'
         )
-        is_current_president = (
-            existing_club
-            and president
-            and president.role == 'president'
-            and president.is_active
-            and president.club_id == existing_club.pk
-        )
-        is_available_student = (
-            president
-            and president.role == 'student'
-            and president.is_active
-            and president.club_id is None
-        )
-        if not is_current_president and not is_available_student:
-            return None, None, (
-                f'president={president_identity} '
-                'must be an active unassigned student.'
-            )
+
+    existing_member_count = existing_club.get_actual_member_count() if existing_club else 0
+    added_president_count = int(not existing_club or president.club_id != existing_club.pk)
+    if existing_member_count + added_president_count > max_members:
+        return None, None, 'max_members cannot be lower than the resulting active membership.'
 
     return teacher, president, None
 
@@ -447,9 +509,18 @@ def has_student_history(student):
     return has_transfer_requests or has_approval_logs
 
 
+def has_active_transfer(student):
+    return TransferRequest.objects.filter(
+        student=student,
+        status__in=ACTIVE_TRANSFER_STATUSES,
+    ).exists()
+
+
 def clear_president_assignment(student):
-    if student.role == 'president':
-        Club.objects.filter(president__icontains=f'({student.username})').update(president='')
+    Club.objects.filter(
+        Q(president__iexact=student.username)
+        | Q(president__icontains=f'({student.username})')
+    ).update(president='')
 
 
 def get_active_president_club(student):
@@ -459,6 +530,25 @@ def get_active_president_club(student):
     if student.role == 'president' and student.club_id:
         query |= Q(pk=student.club_id)
     return Club.objects.filter(is_active=True).filter(query).first()
+
+
+def get_valid_club_president(club):
+    president = get_user_from_display_text(club.president)
+    if (
+        president
+        and president.is_active
+        and president.role == 'president'
+        and president.club_id == club.pk
+    ):
+        return president
+    return None
+
+
+def get_valid_club_teacher(club):
+    teacher = get_user_from_display_text(club.teacher)
+    if teacher and teacher.is_active and teacher.role == 'teacher':
+        return teacher
+    return None
 
 
 def clear_teacher_assignment(teacher):
@@ -478,6 +568,10 @@ def clear_teacher_assignment(teacher):
 
 
 def deactivate_student(student):
+    if get_active_president_club(student):
+        return 'president_requires_replacement'
+    if has_active_transfer(student):
+        return 'active_transfer_requires_resolution'
     clear_president_assignment(student)
     update_fields = []
     if student.role == 'president':
@@ -489,11 +583,14 @@ def deactivate_student(student):
         update_fields.append('is_active')
     if update_fields:
         student.save(update_fields=update_fields)
+    return 'deactivated'
 
 
 def safely_delete_student(student):
     if get_active_president_club(student):
         return 'president_requires_replacement'
+    if has_active_transfer(student):
+        return 'active_transfer_requires_resolution'
 
     clear_president_assignment(student)
 

@@ -82,8 +82,8 @@ class Command(BaseCommand):
         self.stdout.write(f"  Student accounts updated: {student_updated}")
         self.stdout.write(f"  Teacher accounts created: {teacher_created}")
         self.stdout.write(f"  Teacher accounts updated: {teacher_updated}")
-        self.stdout.write("  Presidents: student001 ~ student037")
-        self.stdout.write("  Students: student038 ~ student345")
+        self.stdout.write("  Presidents: 2026001 ~ 2026037")
+        self.stdout.write("  Students: 2026038 ~ 2026345")
         self.stdout.write("  Teachers: teacher001 ~ teacher037")
         self.stdout.write("  Demo non-admin accounts are legacy placeholders and cannot sign in.")
         self.stdout.write("  Distribution:")
@@ -139,7 +139,8 @@ class Command(BaseCommand):
         member_slots = self.build_member_slots(clubs)
 
         for i in range(1, TOTAL_STUDENT_ACCOUNTS + 1):
-            username = f"student{i:03d}"
+            student_id = f"2026{i:03d}"
+            username = student_id
             class_name, seat_number = get_class_and_seat(i)
 
             if i <= PRESIDENT_COUNT:
@@ -155,7 +156,7 @@ class Command(BaseCommand):
                     "first_name": f"學生{i:03d}",
                     "email": f"{username}@legacy.invalid",
                     "role": role,
-                    "student_id": f"2026{i:03d}",
+                    "student_id": student_id,
                     "class_name": class_name,
                     "seat_number": seat_number,
                     "club": assigned_club,
@@ -166,7 +167,7 @@ class Command(BaseCommand):
             account.first_name = f"學生{i:03d}"
             account.email = f"{username}@legacy.invalid"
             account.role = role
-            account.student_id = f"2026{i:03d}"
+            account.student_id = student_id
             account.class_name = class_name
             account.seat_number = seat_number
             account.club = assigned_club

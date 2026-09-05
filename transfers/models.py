@@ -188,6 +188,24 @@ class TransferRequest(models.Model):
         verbose_name = '轉社申請單'
         verbose_name_plural = '轉社申請單'
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student'],
+                condition=models.Q(status__in=[
+                    'orig_president_pending',
+                    'orig_teacher_pending',
+                    'new_president_pending',
+                    'new_teacher_pending',
+                    'admin_pending',
+                    'returned',
+                ]),
+                name='unique_active_transfer_per_student',
+            ),
+            models.CheckConstraint(
+                check=~models.Q(original_club=models.F('target_club')),
+                name='transfer_clubs_must_differ',
+            ),
+        ]
     
     def __str__(self):
         return f"{self.student} - {self.original_club} → {self.target_club} ({self.get_status_display()})"
@@ -238,12 +256,23 @@ class TransferRequest(models.Model):
     
     def can_be_approved_by(self, user):
         """檢查使用者是否有權限核准此階段"""
-        current_approver = self.get_current_approver()
-        
+        if not user or not user.is_authenticated or not user.is_active:
+            return False
+
         if self.status == 'admin_pending':
-            return user.is_admin()
-        
-        return current_approver == user
+            return user.is_superuser or user.role == 'admin'
+
+        current_approver = self.get_current_approver()
+        if current_approver != user:
+            return False
+
+        if self.status == 'orig_president_pending':
+            return user.role == 'president' and user.club_id == self.original_club_id
+        if self.status == 'new_president_pending':
+            return user.role == 'president' and user.club_id == self.target_club_id
+        if self.status in ['orig_teacher_pending', 'new_teacher_pending']:
+            return user.role == 'teacher'
+        return False
     
     def send_notification(self):
         """發送通知給下一個審核者"""

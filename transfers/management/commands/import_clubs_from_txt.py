@@ -66,12 +66,13 @@ class Command(BaseCommand):
                     code=code,
                     defaults={
                         'name': name,
-                        'teacher': teacher,
-                        'president': president,
+                        'teacher': '',
+                        'president': '',
                         'location': location,
                         'category': category,
                         'max_members': 30,
                         'current_members': 0,
+                        'is_active': False,
                     }
                 )
                 
@@ -81,14 +82,15 @@ class Command(BaseCommand):
                 else:
                     # 更新現有資料
                     club.name = name
-                    club.teacher = teacher
-                    club.president = president
                     club.location = location
                     club.category = category
-                    club.save()
+                    club.save(update_fields=['name', 'location', 'category'])
                     updated_count += 1
                     self.stdout.write(f'  更新: {code} - {name} ({category})')
 
         self.stdout.write(self.style.SUCCESS(
             f'\n匯入完成！共建立 {created_count} 個社團，更新 {updated_count} 個社團。'
         ))
+        self.stdout.write(
+            '新社團預設為停用；請在社團管理指派有效社長與指導老師後再啟用。'
+        )

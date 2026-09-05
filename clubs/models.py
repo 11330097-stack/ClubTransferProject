@@ -36,11 +36,20 @@ class Club(models.Model):
     
     def has_available_slots(self):
         """檢查是否還有名額"""
-        return self.current_members < self.max_members
+        return self.get_actual_member_count() < self.max_members
+
+    def get_actual_member_count(self, exclude_user_id=None):
+        queryset = self.members.filter(
+            role__in=['student', 'president'],
+            is_active=True,
+        )
+        if exclude_user_id is not None:
+            queryset = queryset.exclude(pk=exclude_user_id)
+        return queryset.count()
     
     def get_remaining_slots(self):
         """取得剩餘名額"""
-        return max(0, self.max_members - self.current_members)
+        return max(0, self.max_members - self.get_actual_member_count())
     
     def increment_members(self):
         """增加社員人數"""

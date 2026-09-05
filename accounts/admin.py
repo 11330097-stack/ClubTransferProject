@@ -17,6 +17,22 @@ class CustomUserAdmin(UserAdmin):
     list_filter = ['role', 'is_active', 'club']
     search_fields = ['username', 'email', 'student_id', 'first_name', 'last_name']
 
+    def has_add_permission(self, request):
+        # Non-admin accounts must go through the project account workflow, which
+        # enforces identity, role, club-capacity, and password rules together.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        allowed = super().has_change_permission(request, obj)
+        if not allowed or obj is None:
+            return allowed
+        return obj.is_superuser or obj.role == 'admin'
+
+    def has_delete_permission(self, request, obj=None):
+        # The project delete views preserve transfer history and relationships.
+        # Django admin's generic cascade deletion bypasses those safeguards.
+        return False
+
     fieldsets = UserAdmin.fieldsets + (
         ('社團資訊', {
             'fields': ('role', 'student_id', 'club'),

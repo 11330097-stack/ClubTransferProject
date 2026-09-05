@@ -68,7 +68,7 @@
                     <td>{{ club.teacher|default:"-" }}</td>
                     <td>{{ club.president|default:"-" }}</td>
                     <td>{{ club.location|default:"-" }}</td>
-                    <td>{{ club.current_members }} / {{ club.max_members }}</td>
+                    <td>{{ club.actual_member_count }} / {{ club.max_members }}</td>
                     <td>
                         {% if club.is_active %}
                             <span class="badge bg-success">啟用</span>

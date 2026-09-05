@@ -44,6 +44,8 @@ from .services import (
     deactivate_student,
     deactivate_teacher,
     clear_president_assignment,
+    get_valid_club_president,
+    get_valid_club_teacher,
     import_clubs_from_csv,
     import_students_from_csv,
     recalculate_club_current_members,
@@ -53,6 +55,14 @@ from .services import (
 
 
 ASSIGNMENT_LOG_MARKER = 'unassigned_account_assignment'
+ACTIVE_TRANSFER_STATUSES = [
+    'orig_president_pending',
+    'orig_teacher_pending',
+    'new_president_pending',
+    'new_teacher_pending',
+    'admin_pending',
+    'returned',
+]
 
 
 class AdminRequiredMixin(UserPassesTestMixin):
@@ -120,7 +130,16 @@ def release_club_members(club):
     club.save(update_fields=['president', 'current_members'])
 
 
+def reject_active_transfers_for_club(club):
+    now = timezone.now()
+    return TransferRequest.objects.filter(
+        Q(original_club=club) | Q(target_club=club),
+        status__in=ACTIVE_TRANSFER_STATUSES,
+    ).update(status='rejected', completed_at=now, updated_at=now)
+
+
 def deactivate_club(club):
+    reject_active_transfers_for_club(club)
     release_club_members(club)
     club.is_active = False
     club.save(update_fields=['is_active'])
@@ -130,6 +149,7 @@ def safely_delete_club(club):
     has_transfer_history = TransferRequest.objects.filter(
         Q(original_club=club) | Q(target_club=club)
     ).exists()
+    reject_active_transfers_for_club(club)
     release_club_members(club)
     club.teacher = ''
     if has_transfer_history:
@@ -141,9 +161,12 @@ def safely_delete_club(club):
 
 
 def reactivate_club(club):
+    if not get_valid_club_president(club) or not get_valid_club_teacher(club):
+        return False
     club.is_active = True
     club.current_members = 0
     club.save(update_fields=['is_active', 'current_members'])
+    return True
 
 
 class AccountAdminReturnMixin:
@@ -547,9 +570,17 @@ class AccountAdminBulkDeactivateView(
 
         with transaction.atomic():
             updated_count = 0
+            protected_president_count = 0
+            active_transfer_count = 0
             for account in accounts:
                 if account.role in ['student', 'president']:
-                    deactivate_student(account)
+                    result = deactivate_student(account)
+                    if result == 'president_requires_replacement':
+                        protected_president_count += 1
+                        continue
+                    if result == 'active_transfer_requires_resolution':
+                        active_transfer_count += 1
+                        continue
                 elif account.role == 'teacher':
                     deactivate_teacher(account)
                 else:
@@ -557,7 +588,12 @@ class AccountAdminBulkDeactivateView(
                 updated_count += 1
             recalculate_club_current_members()
 
-        messages.success(request, f'已批次停用 {updated_count} 個帳號。')
+        messages.success(
+            request,
+            f'已批次停用 {updated_count} 個帳號；'
+            f'{protected_president_count} 位啟用中社團的社長須先完成交接；'
+            f'{active_transfer_count} 位學生須先結束進行中的轉社申請。',
+        )
         return redirect('account_admin_list')
 
 
@@ -589,6 +625,7 @@ class AccountAdminBulkDeleteView(
         deleted_count = 0
         deactivated_count = 0
         protected_president_count = 0
+        active_transfer_count = 0
 
         with transaction.atomic():
             for account in accounts:
@@ -603,6 +640,8 @@ class AccountAdminBulkDeleteView(
                     deleted_count += 1
                 elif result == 'president_requires_replacement':
                     protected_president_count += 1
+                elif result == 'active_transfer_requires_resolution':
+                    active_transfer_count += 1
                 else:
                     deactivated_count += 1
 
@@ -612,7 +651,8 @@ class AccountAdminBulkDeleteView(
             request,
             f'批次刪除完成：刪除 {deleted_count} 個帳號，'
             f'因有歷史紀錄而停用 {deactivated_count} 個帳號；'
-            f'{protected_president_count} 位啟用中社團的社長須先完成社長交接。',
+            f'{protected_president_count} 位啟用中社團的社長須先完成社長交接；'
+            f'{active_transfer_count} 位學生須先結束進行中的轉社申請。',
         )
         return redirect('account_admin_list')
 
@@ -623,8 +663,16 @@ class AccountAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, FormView):
     success_url = reverse_lazy('account_admin_list')
 
     def form_valid(self, form):
-        user = form.save()
-        recalculate_club_current_members()
+        with transaction.atomic():
+            club = form.cleaned_data.get('club')
+            if form.cleaned_data['role'] == 'student' and club:
+                club = Club.objects.select_for_update().get(pk=club.pk, is_active=True)
+                if club.get_actual_member_count() >= club.max_members:
+                    form.add_error('club', '此社團人數已滿。')
+                    return self.form_invalid(form)
+                form.cleaned_data['club'] = club
+            user = form.save()
+            recalculate_club_current_members()
         messages.success(self.request, f'已新增帳號 {user.username}。')
         return super().form_valid(form)
 
@@ -780,7 +828,7 @@ class UnassignedStudentAssignClubView(LoginRequiredMixin, AdminRequiredMixin, Vi
                 club__isnull=True,
             )
             club = Club.objects.select_for_update().get(pk=club.pk, is_active=True)
-            if club.current_members >= club.max_members:
+            if club.get_actual_member_count() >= club.max_members:
                 messages.warning(request, f'{club.name} 人數已滿，無法分配。')
                 return redirect('unassigned_account_list')
 
@@ -823,7 +871,7 @@ class UnassignedStudentBulkAssignClubView(LoginRequiredMixin, AdminRequiredMixin
                 messages.error(request, '選取的帳號包含非學生、已分配或已停用帳號，無法分配。')
                 return redirect('unassigned_account_list')
 
-            if club.current_members + len(students) > club.max_members:
+            if club.get_actual_member_count() + len(students) > club.max_members:
                 messages.warning(request, f'{club.name} 人數已滿，無法分配。')
                 return redirect('unassigned_account_list')
 
@@ -903,8 +951,23 @@ class TeacherAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdmi
         return kwargs
 
     def form_valid(self, form):
+        with transaction.atomic():
+            original = User.objects.select_for_update().get(pk=self.object.pk)
+            referenced_club_ids = []
+            for club in Club.objects.select_for_update().exclude(teacher=''):
+                referenced_teacher = get_user_from_display_text(club.teacher)
+                if referenced_teacher and referenced_teacher.pk == original.pk:
+                    referenced_club_ids.append(club.pk)
+
+            response = super().form_valid(form)
+            if self.object.is_active:
+                Club.objects.filter(pk__in=referenced_club_ids).update(
+                    teacher=format_club_user_display_text(self.object)
+                )
+            else:
+                Club.objects.filter(pk__in=referenced_club_ids).update(teacher='')
         messages.success(self.request, '指導老師資料已更新。')
-        return super().form_valid(form)
+        return response
 
 
 class TeacherAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
@@ -975,7 +1038,15 @@ class ClubAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        queryset = Club.objects.all().order_by('-is_active', 'code', 'name')
+        queryset = Club.objects.annotate(
+            actual_member_count=Count(
+                'members',
+                filter=Q(
+                    members__role__in=['student', 'president'],
+                    members__is_active=True,
+                ),
+            )
+        ).order_by('-is_active', 'code', 'name')
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(name__icontains=query)
@@ -1009,7 +1080,9 @@ class ClubAdminReactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
     def post(self, request, pk):
         with transaction.atomic():
             club = get_object_or_404(Club.objects.select_for_update(), pk=pk)
-            reactivate_club(club)
+            if not reactivate_club(club):
+                messages.error(request, '請先編輯社團並指派有效社長與指導老師，再重新啟用。')
+                return redirect('club_admin_list')
             recalculate_club_current_members()
 
         messages.success(request, f'已重新啟用 {club.name}。')
@@ -1048,11 +1121,20 @@ class ClubAdminBulkReactivateView(
             if not clubs:
                 messages.error(request, '請先選取社團。')
                 return redirect('club_admin_list')
+            reactivated_count = 0
+            skipped_count = 0
             for club in clubs:
-                reactivate_club(club)
+                if reactivate_club(club):
+                    reactivated_count += 1
+                else:
+                    skipped_count += 1
             recalculate_club_current_members()
 
-        messages.success(request, f'已批次重新啟用 {len(clubs)} 個社團。')
+        messages.success(
+            request,
+            f'已批次重新啟用 {reactivated_count} 個社團；'
+            f'{skipped_count} 個社團因缺少有效社長或指導老師而略過。',
+        )
         return redirect('club_admin_list')
 
 
@@ -1094,8 +1176,16 @@ class ClubAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, CreateView):
 
     def form_valid(self, form):
         with transaction.atomic():
+            president = User.objects.select_for_update().filter(
+                pk=form.selected_president.pk,
+                role='student',
+                is_active=True,
+                club__isnull=True,
+            ).first()
+            if not president:
+                form.add_error('president', '此學生已無法擔任新社團社長，請重新選擇。')
+                return self.form_invalid(form)
             self.object = form.save()
-            president = User.objects.select_for_update().get(pk=form.selected_president.pk)
             president.role = 'president'
             president.club = self.object
             president.save(update_fields=['role', 'club'])
@@ -1146,8 +1236,33 @@ class ClubAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, UpdateView):
             previous_president_ids.append(previous_president.pk)
 
         with transaction.atomic():
+            locked_club = Club.objects.select_for_update().get(pk=self.object.pk)
+            new_president = User.objects.select_for_update().filter(
+                pk=form.selected_president.pk,
+                is_active=True,
+            ).first()
+            valid_current_president = bool(
+                new_president
+                and new_president.role == 'president'
+                and new_president.club_id == locked_club.pk
+            )
+            valid_unassigned_student = bool(
+                new_president
+                and new_president.role == 'student'
+                and new_president.club_id is None
+            )
+            if not valid_current_president and not valid_unassigned_student:
+                form.add_error('president', '此學生的狀態已變更，請重新選擇社長。')
+                return self.form_invalid(form)
+            added_president_count = int(new_president.club_id != locked_club.pk)
+            if (
+                locked_club.get_actual_member_count() + added_president_count
+                > form.cleaned_data['max_members']
+            ):
+                form.add_error('max_members', '人數上限不可低於更新後的實際社員人數。')
+                return self.form_invalid(form)
+
             self.object = form.save()
-            new_president = User.objects.select_for_update().get(pk=form.selected_president.pk)
 
             User.objects.filter(
                 pk__in=previous_president_ids,
@@ -1387,8 +1502,16 @@ class StudentAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdmi
         return kwargs
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        recalculate_club_current_members()
+        with transaction.atomic():
+            club = form.cleaned_data.get('club')
+            if club:
+                club = Club.objects.select_for_update().get(pk=club.pk, is_active=True)
+                if club.get_actual_member_count() >= club.max_members:
+                    form.add_error('club', '此社團人數已滿。')
+                    return self.form_invalid(form)
+                form.instance.club = club
+            response = super().form_valid(form)
+            recalculate_club_current_members()
         messages.success(self.request, '學生帳號已新增。')
         return response
 
@@ -1417,6 +1540,16 @@ class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdmi
                 and is_club_president_user(original, original.club)
             )
             original_club_id = original.club_id
+            target_club = form.cleaned_data.get('club')
+            if target_club:
+                target_club = Club.objects.select_for_update().get(
+                    pk=target_club.pk,
+                    is_active=True,
+                )
+                if target_club.get_actual_member_count(exclude_user_id=original.pk) >= target_club.max_members:
+                    form.add_error('club', '此社團人數已滿。')
+                    return self.form_invalid(form)
+                form.instance.club = target_club
             response = super().form_valid(form)
             if self.object.role == 'president':
                 if was_assigned_president and self.object.club_id == original_club_id:
@@ -1452,11 +1585,20 @@ class StudentAdminDeactivateView(LoginRequiredMixin, AdminRequiredMixin, View):
         )
 
     def post(self, request, pk):
-        student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
         with transaction.atomic():
-            deactivate_student(student)
+            student = get_object_or_404(
+                User.objects.select_for_update(),
+                pk=pk,
+                role__in=['student', 'president'],
+            )
+            result = deactivate_student(student)
             recalculate_club_current_members()
-        messages.success(request, '學生帳號已停用。')
+        if result == 'president_requires_replacement':
+            messages.error(request, '此帳號是啟用中社團的社長，請先完成社長交接。')
+        elif result == 'active_transfer_requires_resolution':
+            messages.error(request, '此學生有進行中的轉社申請，請先結束申請再停用帳號。')
+        else:
+            messages.success(request, '學生帳號已停用。')
         return redirect(admin_operation_return_url(request, 'student_admin_list'))
 
 
@@ -1489,12 +1631,24 @@ class StudentAdminBulkDeactivateView(
         students = self.get_selected_students(request)
         with transaction.atomic():
             updated_count = 0
+            protected_president_count = 0
+            active_transfer_count = 0
             for student in students:
-                deactivate_student(student)
-                updated_count += 1
+                result = deactivate_student(student)
+                if result == 'president_requires_replacement':
+                    protected_president_count += 1
+                elif result == 'active_transfer_requires_resolution':
+                    active_transfer_count += 1
+                else:
+                    updated_count += 1
             recalculate_club_current_members()
 
-        messages.success(request, f'已批次停用 {updated_count} 位學生。')
+        messages.success(
+            request,
+            f'已批次停用 {updated_count} 位學生；'
+            f'{protected_president_count} 位啟用中社團的社長須先完成交接；'
+            f'{active_transfer_count} 位學生須先結束進行中的轉社申請。',
+        )
         return redirect('student_admin_list')
 
 
@@ -1541,6 +1695,7 @@ class StudentAdminBulkDeleteView(
         deleted_count = 0
         deactivated_count = 0
         protected_president_count = 0
+        active_transfer_count = 0
 
         with transaction.atomic():
             for student in students:
@@ -1549,6 +1704,8 @@ class StudentAdminBulkDeleteView(
                     deleted_count += 1
                 elif result == 'president_requires_replacement':
                     protected_president_count += 1
+                elif result == 'active_transfer_requires_resolution':
+                    active_transfer_count += 1
                 else:
                     deactivated_count += 1
             recalculate_club_current_members()
@@ -1557,7 +1714,8 @@ class StudentAdminBulkDeleteView(
             request,
             f'批次刪除完成：刪除 {deleted_count} 位學生，'
             f'因有歷史紀錄而停用 {deactivated_count} 位學生；'
-            f'{protected_president_count} 位啟用中社團的社長須先完成社長交接。',
+            f'{protected_president_count} 位啟用中社團的社長須先完成社長交接；'
+            f'{active_transfer_count} 位學生須先結束進行中的轉社申請。',
         )
         return redirect('student_admin_list')
 
@@ -1577,14 +1735,22 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
         )
 
     def post(self, request, pk):
-        student = get_object_or_404(User, pk=pk, role__in=['student', 'president'])
-
         with transaction.atomic():
+            student = get_object_or_404(
+                User.objects.select_for_update(),
+                pk=pk,
+                role__in=['student', 'president'],
+            )
             result = safely_delete_student(student)
             if result == 'president_requires_replacement':
                 messages.error(
                     request,
                     '此帳號是啟用中社團的社長，請先在社團管理完成社長交接後再刪除。',
+                )
+            elif result == 'active_transfer_requires_resolution':
+                messages.error(
+                    request,
+                    '此學生有進行中的轉社申請，請先結束申請再刪除帳號。',
                 )
             elif result == 'deactivated':
                 messages.warning(
@@ -1612,13 +1778,37 @@ class StudentAdminPromotePresidentView(LoginRequiredMixin, AdminRequiredMixin, V
             messages.error(request, '只有一般學生可以晉升為社長。')
             return redirect(self.success_url_name)
 
+        if not student.is_active:
+            messages.error(request, '停用中的學生不能晉升為社長。')
+            return redirect(self.success_url_name)
+
         if not student.club_id:
             messages.error(request, '此學生目前沒有社團，無法晉升為社長。')
+            return redirect(self.success_url_name)
+
+        if not student.club.is_active:
+            messages.error(request, '停用中的社團不能指派社長。')
+            return redirect(self.success_url_name)
+
+        if TransferRequest.objects.filter(
+            student=student,
+            status__in=ACTIVE_TRANSFER_STATUSES,
+        ).exists():
+            messages.error(request, '此學生有進行中的轉社申請，完成或結束申請前不能晉升為社長。')
             return redirect(self.success_url_name)
 
         with transaction.atomic():
             student = User.objects.select_for_update().select_related('club').get(pk=student.pk)
             club = Club.objects.select_for_update().get(pk=student.club_id)
+            if not student.is_active or student.role != 'student' or not club.is_active:
+                messages.error(request, '學生或社團狀態已變更，無法晉升為社長。')
+                return redirect(self.success_url_name)
+            if TransferRequest.objects.select_for_update().filter(
+                student=student,
+                status__in=ACTIVE_TRANSFER_STATUSES,
+            ).exists():
+                messages.error(request, '此學生有進行中的轉社申請，無法晉升為社長。')
+                return redirect(self.success_url_name)
             previous_president = get_user_from_display_text(club.president)
             missing_president_notice = False
 

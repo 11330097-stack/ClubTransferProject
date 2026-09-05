@@ -50,6 +50,10 @@ class User(django.contrib.auth.models.AbstractUser):
         verbose_name_plural = '使用者'
         constraints = [
             models.UniqueConstraint(
+                Lower('username'),
+                name='unique_login_id_ci',
+            ),
+            models.UniqueConstraint(
                 Lower('email'),
                 condition=~models.Q(email=''),
                 name='unique_nonempty_email_ci',

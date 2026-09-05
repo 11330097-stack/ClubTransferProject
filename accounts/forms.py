@@ -5,7 +5,12 @@ from django.db.models import Q
 from clubs.models import Club
 from transfers.models import get_user_from_display_text
 from .models import User
-from .services import normalize_email, normalize_login_id
+from .services import (
+    get_active_president_club,
+    has_active_transfer,
+    normalize_email,
+    normalize_login_id,
+)
 
 
 def format_user_display_text(user):
@@ -114,6 +119,25 @@ class StudentAccountForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        club = cleaned_data.get('club')
+        if club and club.get_actual_member_count(exclude_user_id=self.instance.pk) >= club.max_members:
+            self.add_error('club', '此社團人數已滿。')
+
+        if self.instance.pk and get_active_president_club(self.instance):
+            if not cleaned_data.get('is_active'):
+                self.add_error('is_active', '啟用中社團的社長必須先完成社長交接。')
+            if club and club.pk != self.instance.club_id:
+                self.add_error('club', '社長必須先完成社長交接，不能直接更換社團。')
+            if not club:
+                self.add_error('club', '社長必須先完成社長交接，不能直接移出社團。')
+
+        if (
+            self.instance.pk
+            and self.instance.club_id != (club.pk if club else None)
+            and has_active_transfer(self.instance)
+        ):
+            self.add_error('club', '此學生有進行中的轉社申請，不能直接變更社團。')
+
         password = cleaned_data.get('password')
         password_confirm = cleaned_data.get('password_confirm')
         if password or password_confirm:
@@ -338,6 +362,9 @@ class AccountCreateForm(forms.Form):
         if role == 'student':
             if User.objects.filter(student_id__iexact=login_id).exists():
                 self.add_error('login_id', '學生學號已存在。')
+            club = cleaned_data.get('club')
+            if club and club.get_actual_member_count() >= club.max_members:
+                self.add_error('club', '此社團人數已滿。')
         elif cleaned_data.get('club'):
             self.add_error('club', '老師帳號不能設定學生社團。')
 
@@ -433,6 +460,20 @@ class ClubAdminForm(forms.ModelForm):
         president = self.cleaned_data['president']
         self.selected_president = president
         return format_user_display_text(president)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        max_members = cleaned_data.get('max_members')
+        president = getattr(self, 'selected_president', None)
+        if max_members and president:
+            existing_count = self.instance.get_actual_member_count() if self.instance.pk else 0
+            added_president_count = int(not self.instance.pk or president.club_id != self.instance.pk)
+            if existing_count + added_president_count > max_members:
+                self.add_error(
+                    'max_members',
+                    '人數上限不可低於更新後的實際社員人數。',
+                )
+        return cleaned_data
 
     def save(self, commit=True):
         if not self.instance.pk and not self.instance.code:

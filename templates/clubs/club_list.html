@@ -44,7 +44,7 @@
                 <div class="row text-center g-2">
                     <div class="col-6">
                         <div class="p-2 bg-light rounded">
-                            <div class="h5 mb-0">{{ info.club.current_members }}</div>
+                            <div class="h5 mb-0">{{ info.actual_member_count }}</div>
                             <small class="text-muted">目前人數</small>
                         </div>
                     </div>
@@ -58,14 +58,14 @@
 
                 <div class="mt-3">
                     <div class="progress" style="height: 20px;">
-                        {% widthratio info.club.current_members info.club.max_members 100 as percentage %}
+                        {% widthratio info.actual_member_count info.club.max_members 100 as percentage %}
                         <div class="progress-bar {% if percentage >= 100 %}bg-danger{% elif percentage >= 80 %}bg-warning{% else %}bg-success{% endif %}"
                              role="progressbar"
                              style="width: {{ percentage }}%"
-                             aria-valuenow="{{ info.club.current_members }}"
+                             aria-valuenow="{{ info.actual_member_count }}"
                              aria-valuemin="0"
                              aria-valuemax="{{ info.club.max_members }}">
-                            {{ info.club.current_members }}/{{ info.club.max_members }}
+                            {{ info.actual_member_count }}/{{ info.club.max_members }}
                         </div>
                     </div>
                 </div>
