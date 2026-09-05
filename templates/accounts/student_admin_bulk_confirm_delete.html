@@ -9,7 +9,7 @@
     <p class="mb-2">請確認是否要安全刪除以下 {{ students|length }} 位學生/社長。</p>
     <p class="mb-0">
         有轉社申請或審核紀錄的學生/社長只會被停用，不會真正刪除；
-        沒有任何歷史紀錄的學生/社長帳號才會被刪除。
+        啟用中社團的社長必須先完成社長交接；其他沒有歷史紀錄的帳號才會被刪除。
     </p>
 </div>
 
@@ -17,7 +17,7 @@
     <table class="table table-striped align-middle">
         <thead>
             <tr>
-                <th>Username</th>
+                <th>Email</th>
                 <th>Student ID</th>
                 <th>姓名</th>
                 <th>社團</th>
@@ -27,7 +27,7 @@
         <tbody>
             {% for student in students %}
                 <tr>
-                    <td>{{ student.username }}</td>
+                    <td>{{ student.email|default:student.username }}</td>
                     <td>{{ student.student_id|default:"-" }}</td>
                     <td>{{ student.first_name|default:"-" }}</td>
                     <td>{{ student.club|default:"-" }}</td>

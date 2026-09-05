@@ -5,7 +5,7 @@
   <a href="{% url 'admin:index' %}">Home</a>
   &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
   &rsaquo; <a href="{% url 'admin:accounts_user_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
-  &rsaquo; 匯入學生 CSV
+  &rsaquo; 匯入帳號 CSV
 </div>
 {% endblock %}
 
@@ -28,7 +28,7 @@
 
   <div class="module">
     <h2>CSV 範例</h2>
-    <p>欄位順序建議如下，檔案請使用 UTF-8 編碼。新帳號 password 必填；更新既有帳號時 password 可留空以保留原密碼。</p>
+    <p>欄位為 role、login_id、name、email、class_name、seat_number、club_name、password。學生的 login_id 同時是登入帳號與學號；老師的 login_id 是登入帳號。新帳號 password 必填，更新時可留空保留原密碼。</p>
     <pre>{{ sample_csv }}</pre>
   </div>
 

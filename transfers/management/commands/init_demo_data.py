@@ -4,7 +4,6 @@ Initialize deterministic demo data.
 Usage:
     python manage.py init_demo_data
 """
-from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -19,8 +18,6 @@ TEACHER_COUNT = 37
 FIRST_GROUP_CLUB_COUNT = 12
 FIRST_GROUP_STUDENT_MEMBERS = 9
 SECOND_GROUP_STUDENT_MEMBERS = 8
-STUDENT_PASSWORD = "student123"
-TEACHER_PASSWORD = "teacher123"
 
 
 def get_class_and_seat(student_number):
@@ -88,8 +85,7 @@ class Command(BaseCommand):
         self.stdout.write("  Presidents: student001 ~ student037")
         self.stdout.write("  Students: student038 ~ student345")
         self.stdout.write("  Teachers: teacher001 ~ teacher037")
-        self.stdout.write(f"  Student password: {STUDENT_PASSWORD}")
-        self.stdout.write(f"  Teacher password: {TEACHER_PASSWORD}")
+        self.stdout.write("  Demo non-admin accounts are legacy placeholders and cannot sign in.")
         self.stdout.write("  Distribution:")
         for club in clubs:
             self.stdout.write(
@@ -140,7 +136,6 @@ class Command(BaseCommand):
     def create_student_accounts(self, clubs):
         created_count = 0
         updated_count = 0
-        password_hash = make_password(STUDENT_PASSWORD)
         member_slots = self.build_member_slots(clubs)
 
         for i in range(1, TOTAL_STUDENT_ACCOUNTS + 1):
@@ -158,7 +153,7 @@ class Command(BaseCommand):
                 username=username,
                 defaults={
                     "first_name": f"學生{i:03d}",
-                    "email": f"{username}@school.edu.tw",
+                    "email": f"{username}@legacy.invalid",
                     "role": role,
                     "student_id": f"2026{i:03d}",
                     "class_name": class_name,
@@ -169,14 +164,14 @@ class Command(BaseCommand):
             )
 
             account.first_name = f"學生{i:03d}"
-            account.email = f"{username}@school.edu.tw"
+            account.email = f"{username}@legacy.invalid"
             account.role = role
             account.student_id = f"2026{i:03d}"
             account.class_name = class_name
             account.seat_number = seat_number
             account.club = assigned_club
             account.is_active = True
-            account.password = password_hash
+            account.set_unusable_password()
             account.save()
 
             if role == "president":
@@ -193,15 +188,13 @@ class Command(BaseCommand):
     def create_teacher_accounts(self, clubs):
         created_count = 0
         updated_count = 0
-        password_hash = make_password(TEACHER_PASSWORD)
-
         for i, club in enumerate(clubs, start=1):
             username = f"teacher{i:03d}"
             teacher, created = User.objects.get_or_create(
                 username=username,
                 defaults={
                     "first_name": f"老師{i:03d}",
-                    "email": f"{username}@school.edu.tw",
+                    "email": f"{username}@legacy.invalid",
                     "role": "teacher",
                     "student_id": "",
                     "club": None,
@@ -210,12 +203,12 @@ class Command(BaseCommand):
             )
 
             teacher.first_name = f"老師{i:03d}"
-            teacher.email = f"{username}@school.edu.tw"
+            teacher.email = f"{username}@legacy.invalid"
             teacher.role = "teacher"
             teacher.student_id = ""
             teacher.club = None
             teacher.is_active = True
-            teacher.password = password_hash
+            teacher.set_unusable_password()
             teacher.save()
 
             club.teacher = f"{teacher.first_name} ({teacher.username})"

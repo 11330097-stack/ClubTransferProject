@@ -1,5 +1,6 @@
 import django.contrib.auth.models
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class User(django.contrib.auth.models.AbstractUser):
@@ -47,12 +48,27 @@ class User(django.contrib.auth.models.AbstractUser):
     class Meta:
         verbose_name = '使用者'
         verbose_name_plural = '使用者'
+        constraints = [
+            models.UniqueConstraint(
+                Lower('email'),
+                condition=~models.Q(email=''),
+                name='unique_nonempty_email_ci',
+            ),
+            models.UniqueConstraint(
+                Lower('student_id'),
+                condition=(
+                    models.Q(role__in=['student', 'president'])
+                    & ~models.Q(student_id='')
+                ),
+                name='unique_student_id_ci',
+            ),
+        ]
     
     def __str__(self):
         return f"{self.get_full_name() or self.username} ({self.get_role_display()})"
     
     def is_student(self):
-        return self.role == 'student'
+        return self.role in ['student', 'president']
     
     def is_president(self):
         return self.role == 'president'

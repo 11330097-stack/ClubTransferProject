@@ -4,12 +4,22 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">匯入帳號 CSV</h1>
+    <h1 class="h3 mb-0">帳號建立與 CSV 匯入</h1>
     <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回帳號管理</a>
 </div>
 
+<form method="post" class="card card-body mb-3">
+    {% csrf_token %}
+    <h2 class="h5">新增單一帳號</h2>
+    {{ single_form.as_p }}
+    <div>
+        <button type="submit" name="create_one" class="btn btn-primary">新增帳號</button>
+    </div>
+</form>
+
 <form method="post" enctype="multipart/form-data" class="card card-body mb-3">
     {% csrf_token %}
+    <h2 class="h5">批次匯入 CSV</h2>
     {{ form.as_p }}
     <div>
         <button type="submit" class="btn btn-primary">匯入</button>
@@ -19,7 +29,10 @@
 <div class="card card-body mb-3">
     <h2 class="h5">CSV 格式</h2>
     <p class="mb-2">CSV 欄位需包含：</p>
-    <p class="mb-2">姓名、身分、email、學號、班級、座號、社團</p>
+    <p class="mb-2">必要欄位：role、login_id、name、email、class_name、seat_number、club_name、password。</p>
+    <p class="mb-2">role 只能是 student 或 teacher。學生的 login_id 同時是登入帳號與學號；老師的 login_id 是登入帳號。</p>
+    <p class="mb-2">新帳號 password 必填；更新既有帳號時留空即可保留原密碼。Email 可留空。</p>
+    <pre class="bg-light p-2">{{ sample_csv }}</pre>
     <p class="mb-2">請使用 Excel 的：</p>
     <p class="mb-2">「另存新檔 → CSV UTF-8（逗號分隔） (*.csv)」</p>
     <p class="mb-0">本系統不支援 .xlsx 檔案。</p>

@@ -13,9 +13,9 @@ from .services import SAMPLE_STUDENT_IMPORT_CSV, import_students_from_csv
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
     change_list_template = 'admin/accounts/user/change_list.html'
-    list_display = ['username', 'student_id', 'get_full_name', 'role', 'club', 'is_active']
+    list_display = ['username', 'student_id', 'get_full_name', 'email', 'role', 'club', 'is_active']
     list_filter = ['role', 'is_active', 'club']
-    search_fields = ['username', 'student_id', 'first_name', 'last_name']
+    search_fields = ['username', 'email', 'student_id', 'first_name', 'last_name']
 
     fieldsets = UserAdmin.fieldsets + (
         ('社團資訊', {
@@ -56,7 +56,7 @@ class CustomUserAdmin(UserAdmin):
 
         context = {
             **self.admin_site.each_context(request),
-            'title': '匯入學生 CSV',
+            'title': '匯入帳號 CSV',
             'opts': self.model._meta,
             'sample_csv': SAMPLE_STUDENT_IMPORT_CSV,
             'result': None,

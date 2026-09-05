@@ -44,7 +44,7 @@ python manage.py migrate
 python manage.py init_demo_data
 ```
 
-此指令會建立下方的學生、社長與指導老師帳號。訓育組帳號不會由此指令建立，如尚未建立請執行：
+此指令會建立學生、社長與指導老師的資料占位帳號，用於展示社團關聯；預設不建立可登入的共用密碼。訓育組帳號不會由此指令建立，如尚未建立請執行：
 
 ```bash
 python manage.py createsuperuser
@@ -58,25 +58,21 @@ python manage.py runserver
 
 瀏覽器開啟 http://127.0.0.1:8000/
 
-## Demo 帳號
+## 帳號與登入
 
-| 角色 | 帳號 | 密碼 |
-|------|------|------|
-| 訓育組 / 管理員 | 自行建立的 superuser，或 `role='admin'` 的帳號 | 依建立時設定 |
-| 社長 | student001 ~ student037 | student123 |
-| 一般學生 | student038 ~ student345 | student123 |
-| 指導老師 | teacher001 ~ teacher037 | teacher123 |
-
-舊 demo 帳號 `president1~president4`、`student1~student5`、`teacher1~teacher3` 已停用，請不要用於展示流程。
+- 管理員、學生、老師與社長皆使用 Django 帳號密碼登入。
+- 學生的登入帳號與正規化學號相同；老師使用管理員指派的唯一帳號。
+- 社長由既有學生透過社團管理流程指派，不建立第二個帳號。
+- Email 僅作為選填聯絡資料，不限制網域；非空 Email 不分大小寫且不可重複。
+- 帳號只能由管理員單筆建立或以 CSV 匯入，密碼使用 Django 驗證器並以安全雜湊儲存。
 
 ## Demo 主流程範例
 
-1. `student038` 以一般學生身分登入後送出轉社申請，例如從 D001 籃球社轉到 D002 排球社。`student001 ~ student037` 為社長，不能直接申請轉社。
-2. `student001` 以原社團社長身分審核。
-3. `teacher001` 以原社團指導老師身分審核。
-4. `student002` 以新社團社長身分審核。
-5. `teacher002` 以新社團指導老師身分審核。
-6. 以自行建立的 superuser 或 `role='admin'` 的訓育組帳號做最終核准。
+1. 管理員先建立或匯入學生與老師帳號，再建立社團並指派老師、社員與社長。
+2. 一般學生以學號與密碼登入後送出轉社申請。
+3. 原社團社長與老師依序審核。
+4. 新社團社長與老師依序審核。
+5. 以自行建立的 superuser 或 `role='admin'` 的訓育組帳號做最終核准。
 
 ## 角色權限
 

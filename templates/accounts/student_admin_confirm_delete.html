@@ -9,17 +9,17 @@
     <p class="mb-2">
         請確認是否要刪除學生/社長帳號：
         <strong>{{ student.first_name|default:student.username }}</strong>
-        ({{ student.username }})
+        ({{ student.email|default:student.username }})
     </p>
     <p class="mb-0">
         如果此帳號已有轉社申請或審核紀錄，系統會為了保留歷史資料而改為停用帳號，不會真正刪除。
-        只有沒有任何歷史紀錄的學生/社長帳號才會被真正刪除。
+        啟用中社團的社長必須先在社團管理完成社長交接；只有非現任社長且沒有歷史紀錄的帳號才會被真正刪除。
     </p>
 </div>
 
 <dl class="row">
-    <dt class="col-sm-2">Username</dt>
-    <dd class="col-sm-10">{{ student.username }}</dd>
+    <dt class="col-sm-2">Email</dt>
+    <dd class="col-sm-10">{{ student.email|default:student.username }}</dd>
     <dt class="col-sm-2">Student ID</dt>
     <dd class="col-sm-10">{{ student.student_id|default:"-" }}</dd>
     <dt class="col-sm-2">Name</dt>

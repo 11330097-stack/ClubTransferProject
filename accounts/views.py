@@ -126,6 +126,20 @@ def deactivate_club(club):
     club.save(update_fields=['is_active'])
 
 
+def safely_delete_club(club):
+    has_transfer_history = TransferRequest.objects.filter(
+        Q(original_club=club) | Q(target_club=club)
+    ).exists()
+    release_club_members(club)
+    club.teacher = ''
+    if has_transfer_history:
+        club.is_active = False
+        club.save(update_fields=['teacher', 'is_active'])
+        return 'deactivated'
+    club.delete()
+    return 'deleted'
+
+
 def reactivate_club(club):
     club.is_active = True
     club.current_members = 0
@@ -444,7 +458,8 @@ class AccountAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(
-                Q(first_name__icontains=query)
+                Q(username__icontains=query)
+                | Q(first_name__icontains=query)
                 | Q(last_name__icontains=query)
                 | Q(student_id__icontains=query)
                 | Q(email__icontains=query)
@@ -573,6 +588,7 @@ class AccountAdminBulkDeleteView(
         accounts = list(self.get_selected_accounts(request))
         deleted_count = 0
         deactivated_count = 0
+        protected_president_count = 0
 
         with transaction.atomic():
             for account in accounts:
@@ -585,6 +601,8 @@ class AccountAdminBulkDeleteView(
 
                 if result == 'deleted':
                     deleted_count += 1
+                elif result == 'president_requires_replacement':
+                    protected_president_count += 1
                 else:
                     deactivated_count += 1
 
@@ -593,7 +611,8 @@ class AccountAdminBulkDeleteView(
         messages.success(
             request,
             f'批次刪除完成：刪除 {deleted_count} 個帳號，'
-            f'因有歷史紀錄而停用 {deactivated_count} 個帳號。',
+            f'因有歷史紀錄而停用 {deactivated_count} 個帳號；'
+            f'{protected_president_count} 位啟用中社團的社長須先完成社長交接。',
         )
         return redirect('account_admin_list')
 
@@ -1049,14 +1068,21 @@ class ClubAdminBulkDeleteView(
             if not clubs:
                 messages.error(request, '請先選取社團。')
                 return redirect('club_admin_list')
+            deleted_count = 0
+            deactivated_count = 0
             for club in clubs:
-                release_club_members(club)
-                club.teacher = ''
-                club.is_active = False
-                club.save(update_fields=['teacher', 'is_active'])
+                result = safely_delete_club(club)
+                if result == 'deleted':
+                    deleted_count += 1
+                else:
+                    deactivated_count += 1
             recalculate_club_current_members()
 
-        messages.warning(request, f'已批次刪除 {len(clubs)} 個社團。')
+        messages.warning(
+            request,
+            f'批次刪除完成：刪除 {deleted_count} 個社團；'
+            f'因有轉社歷史而停用 {deactivated_count} 個社團。',
+        )
         return redirect('club_admin_list')
 
 
@@ -1283,16 +1309,19 @@ class ClubAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
 
         with transaction.atomic():
             released_count = User.objects.filter(club=club).count()
-            release_club_members(club)
-            club.teacher = ''
-            club.is_active = False
-            club.save(update_fields=['teacher', 'is_active'])
+            result = safely_delete_club(club)
             recalculate_club_current_members()
 
-        messages.warning(
-            request,
-            f'社團已安全刪除：已停用社團、清空老師與社長欄位，並解除 {released_count} 位啟用成員的社團分配。',
-        )
+        if result == 'deactivated':
+            messages.warning(
+                request,
+                f'社團有轉社歷史，已改為停用並解除 {released_count} 位成員的社團分配。',
+            )
+        else:
+            messages.success(
+                request,
+                f'社團已刪除，並解除 {released_count} 位成員的社團分配。',
+            )
         return redirect('club_admin_list')
 
     def get_active_members(self, club):
@@ -1333,6 +1362,7 @@ class StudentAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
         if query:
             queryset = queryset.filter(
                 Q(username__icontains=query)
+                | Q(email__icontains=query)
                 | Q(student_id__icontains=query)
                 | Q(first_name__icontains=query)
             )
@@ -1380,8 +1410,18 @@ class StudentAdminUpdateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdmi
 
     def form_valid(self, form):
         with transaction.atomic():
+            original = User.objects.select_for_update().select_related('club').get(pk=self.object.pk)
+            was_assigned_president = bool(
+                original.club_id
+                and original.role == 'president'
+                and is_club_president_user(original, original.club)
+            )
+            original_club_id = original.club_id
             response = super().form_valid(form)
             if self.object.role == 'president':
+                if was_assigned_president and self.object.club_id == original_club_id:
+                    self.object.club.president = format_club_user_display_text(self.object)
+                    self.object.club.save(update_fields=['president'])
                 current_president = (
                     get_user_from_display_text(self.object.club.president)
                     if self.object.club_id and self.object.club.president
@@ -1500,12 +1540,15 @@ class StudentAdminBulkDeleteView(
         students = list(self.get_selected_students(request))
         deleted_count = 0
         deactivated_count = 0
+        protected_president_count = 0
 
         with transaction.atomic():
             for student in students:
                 result = safely_delete_student(student)
                 if result == 'deleted':
                     deleted_count += 1
+                elif result == 'president_requires_replacement':
+                    protected_president_count += 1
                 else:
                     deactivated_count += 1
             recalculate_club_current_members()
@@ -1513,7 +1556,8 @@ class StudentAdminBulkDeleteView(
         messages.success(
             request,
             f'批次刪除完成：刪除 {deleted_count} 位學生，'
-            f'因有歷史紀錄而停用 {deactivated_count} 位學生。',
+            f'因有歷史紀錄而停用 {deactivated_count} 位學生；'
+            f'{protected_president_count} 位啟用中社團的社長須先完成社長交接。',
         )
         return redirect('student_admin_list')
 
@@ -1537,7 +1581,12 @@ class StudentAdminDeleteView(LoginRequiredMixin, AdminRequiredMixin, View):
 
         with transaction.atomic():
             result = safely_delete_student(student)
-            if result == 'deactivated':
+            if result == 'president_requires_replacement':
+                messages.error(
+                    request,
+                    '此帳號是啟用中社團的社長，請先在社團管理完成社長交接後再刪除。',
+                )
+            elif result == 'deactivated':
                 messages.warning(
                     request,
                     '此學生已有申請或審核紀錄，為保留歷史資料，系統已改為停用而非刪除。',
@@ -1611,7 +1660,22 @@ class StudentCsvImportView(LoginRequiredMixin, AdminRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['sample_csv'] = SAMPLE_STUDENT_IMPORT_CSV
         context['result'] = getattr(self, 'result', None)
+        context['single_form'] = kwargs.get(
+            'single_form',
+            AccountCreateForm(),
+        )
         return context
+
+    def post(self, request, *args, **kwargs):
+        if 'create_one' in request.POST:
+            single_form = AccountCreateForm(request.POST)
+            if single_form.is_valid():
+                user = single_form.save()
+                recalculate_club_current_members()
+                messages.success(request, f'已新增帳號 {user.username}。')
+                return redirect('account_admin_import')
+            return self.render_to_response(self.get_context_data(single_form=single_form))
+        return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
         self.result = import_students_from_csv(form.cleaned_data['csv_file'])

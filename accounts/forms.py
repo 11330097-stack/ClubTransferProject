@@ -1,10 +1,11 @@
 from django import forms
+from django.contrib.auth.password_validation import validate_password
 from django.db.models import Q
 
 from clubs.models import Club
 from transfers.models import get_user_from_display_text
 from .models import User
-from .services import generate_unique_student_id, generate_unique_username
+from .services import normalize_email, normalize_login_id
 
 
 def format_user_display_text(user):
@@ -46,13 +47,18 @@ class StudentAccountForm(forms.ModelForm):
     password = forms.CharField(
         required=False,
         widget=forms.PasswordInput(render_value=False),
+        label='新密碼',
         help_text='新增時必填；編輯時留空代表不修改密碼。',
+    )
+    password_confirm = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        label='確認新密碼',
     )
 
     class Meta:
         model = User
         fields = [
-            'username',
             'student_id',
             'class_name',
             'seat_number',
@@ -62,13 +68,14 @@ class StudentAccountForm(forms.ModelForm):
             'club',
             'is_active',
             'password',
+            'password_confirm',
         ]
 
     def __init__(self, *args, **kwargs):
         self.is_create = kwargs.pop('is_create', False)
         super().__init__(*args, **kwargs)
-        self.original_password = self.instance.password
         self.original_role = self.instance.role
+        self.original_password = self.instance.password
         if self.instance.pk and self.instance.role == 'president':
             self.fields['role'].choices = [('president', 'president')]
             self.fields['role'].initial = 'president'
@@ -77,28 +84,47 @@ class StudentAccountForm(forms.ModelForm):
             self.fields['role'].initial = 'student'
         self.fields['club'].queryset = Club.objects.filter(is_active=True).order_by('code', 'name')
         self.fields['password'].required = self.is_create
-        if self.instance.pk:
-            self.fields.pop('username', None)
-
-    def clean_username(self):
-        username = self.cleaned_data['username']
-        queryset = User.objects.filter(username=username)
-        if self.instance.pk:
-            queryset = queryset.exclude(pk=self.instance.pk)
-        if queryset.exists():
-            raise forms.ValidationError('username 已存在。')
-        return username
+        self.fields['password_confirm'].required = self.is_create
 
     def clean_student_id(self):
-        student_id = self.cleaned_data['student_id']
+        student_id = normalize_login_id(self.cleaned_data['student_id'])
         if not student_id:
-            raise forms.ValidationError('student_id 必填。')
-        queryset = User.objects.filter(student_id=student_id)
+            raise forms.ValidationError('學號必填。')
+        queryset = User.objects.filter(student_id__iexact=student_id)
         if self.instance.pk:
             queryset = queryset.exclude(pk=self.instance.pk)
         if queryset.exists():
-            raise forms.ValidationError('student_id 已存在。')
+            raise forms.ValidationError('學號已存在。')
+        username_matches = User.objects.filter(username__iexact=student_id)
+        if self.instance.pk:
+            username_matches = username_matches.exclude(pk=self.instance.pk)
+        if username_matches.exists():
+            raise forms.ValidationError('此學號已被其他登入帳號使用。')
         return student_id
+
+    def clean_email(self):
+        email = normalize_email(self.cleaned_data.get('email'))
+        if email:
+            queryset = User.objects.filter(email__iexact=email)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise forms.ValidationError('此 Email 已由其他帳號使用。')
+        return email
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        password_confirm = cleaned_data.get('password_confirm')
+        if password or password_confirm:
+            if password != password_confirm:
+                self.add_error('password_confirm', '兩次輸入的密碼不一致。')
+            elif password:
+                try:
+                    validate_password(password, self.instance)
+                except forms.ValidationError as error:
+                    self.add_error('password', error)
+        return cleaned_data
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -106,10 +132,11 @@ class StudentAccountForm(forms.ModelForm):
             user.role = self.original_role
         else:
             user.role = 'student'
+        user.username = user.student_id
         password = self.cleaned_data.get('password')
         if password:
             user.set_password(password)
-        elif user.pk:
+        elif not self.is_create:
             user.password = self.original_password
         if commit:
             user.save()
@@ -121,7 +148,13 @@ class TeacherAccountForm(forms.ModelForm):
     password = forms.CharField(
         required=False,
         widget=forms.PasswordInput(render_value=False),
+        label='新密碼',
         help_text='新增時必填；編輯時留空代表不修改密碼。',
+    )
+    password_confirm = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        label='確認新密碼',
     )
 
     class Meta:
@@ -132,6 +165,7 @@ class TeacherAccountForm(forms.ModelForm):
             'email',
             'is_active',
             'password',
+            'password_confirm',
         ]
 
     def __init__(self, *args, **kwargs):
@@ -139,15 +173,26 @@ class TeacherAccountForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.original_password = self.instance.password
         self.fields['password'].required = self.is_create
+        self.fields['password_confirm'].required = self.is_create
 
     def clean_username(self):
-        username = self.cleaned_data['username']
-        queryset = User.objects.filter(username=username)
+        username = normalize_login_id(self.cleaned_data['username'])
+        queryset = User.objects.filter(username__iexact=username)
         if self.instance.pk:
             queryset = queryset.exclude(pk=self.instance.pk)
         if queryset.exists():
-            raise forms.ValidationError('username 已存在。')
+            raise forms.ValidationError('登入帳號已存在。')
         return username
+
+    def clean_email(self):
+        email = normalize_email(self.cleaned_data.get('email'))
+        if email:
+            queryset = User.objects.filter(email__iexact=email)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise forms.ValidationError('此 Email 已由其他帳號使用。')
+        return email
 
     def clean_first_name(self):
         first_name = self.cleaned_data['first_name'].strip()
@@ -155,15 +200,33 @@ class TeacherAccountForm(forms.ModelForm):
             raise forms.ValidationError('姓名必填。')
         return first_name
 
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        password_confirm = cleaned_data.get('password_confirm')
+        if password or password_confirm:
+            if password != password_confirm:
+                self.add_error('password_confirm', '兩次輸入的密碼不一致。')
+            elif password:
+                try:
+                    validate_password(password, self.instance)
+                except forms.ValidationError as error:
+                    self.add_error('password', error)
+        return cleaned_data
+
     def save(self, commit=True):
         user = super().save(commit=False)
         user.role = 'teacher'
         if self.is_create:
             user.is_active = True
+        user.student_id = ''
+        user.class_name = ''
+        user.seat_number = None
+        user.club = None
         password = self.cleaned_data.get('password')
         if password:
             user.set_password(password)
-        elif user.pk:
+        elif not self.is_create:
             user.password = self.original_password
         if commit:
             user.save()
@@ -177,23 +240,50 @@ class AdminProfileForm(forms.ModelForm):
         widget=forms.PasswordInput(render_value=False),
         help_text='留空代表不修改密碼。',
     )
+    password_confirm = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        label='確認新密碼',
+    )
 
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'email', 'password']
+        fields = ['username', 'first_name', 'email', 'password', 'password_confirm']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.original_password = self.instance.password
 
     def clean_username(self):
-        username = self.cleaned_data['username']
-        queryset = User.objects.filter(username=username)
+        username = normalize_login_id(self.cleaned_data['username'])
+        queryset = User.objects.filter(username__iexact=username)
         if self.instance.pk:
             queryset = queryset.exclude(pk=self.instance.pk)
         if queryset.exists():
             raise forms.ValidationError('username 已存在。')
         return username
+
+    def clean_email(self):
+        email = normalize_email(self.cleaned_data.get('email'))
+        if email:
+            queryset = User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise forms.ValidationError('此 Email 已由其他帳號使用。')
+        return email
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        password_confirm = cleaned_data.get('password_confirm')
+        if password or password_confirm:
+            if password != password_confirm:
+                self.add_error('password_confirm', '兩次輸入的密碼不一致。')
+            elif password:
+                try:
+                    validate_password(password, self.instance)
+                except forms.ValidationError as error:
+                    self.add_error('password', error)
+        return cleaned_data
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -212,6 +302,7 @@ class AccountCreateForm(forms.Form):
         choices=[('student', '學生'), ('teacher', '指導老師')],
         label='身分',
     )
+    login_id = forms.CharField(max_length=150, label='登入帳號／學生學號')
     first_name = forms.CharField(label='姓名')
     email = forms.EmailField(required=False, label='Email')
     class_name = forms.CharField(required=False, label='班級')
@@ -222,30 +313,58 @@ class AccountCreateForm(forms.Form):
         label='社團',
         empty_label='未分配',
     )
-    password = forms.CharField(widget=forms.PasswordInput, label='密碼')
+    password = forms.CharField(
+        widget=forms.PasswordInput(render_value=False),
+        label='密碼',
+    )
+    password_confirm = forms.CharField(
+        widget=forms.PasswordInput(render_value=False),
+        label='確認密碼',
+    )
 
     def clean(self):
         cleaned_data = super().clean()
         role = cleaned_data.get('role')
+        login_id = normalize_login_id(cleaned_data.get('login_id'))
+        cleaned_data['login_id'] = login_id
+        if User.objects.filter(username__iexact=login_id).exists():
+            self.add_error('login_id', '登入帳號已存在。')
+
+        email = normalize_email(cleaned_data.get('email'))
+        cleaned_data['email'] = email
+        if email and User.objects.filter(email__iexact=email).exists():
+            self.add_error('email', '此 Email 已由其他帳號使用。')
+
         if role == 'student':
-            if not cleaned_data.get('class_name'):
-                self.add_error('class_name', '學生必填班級。')
-            if cleaned_data.get('seat_number') is None:
-                self.add_error('seat_number', '學生必填座號。')
+            if User.objects.filter(student_id__iexact=login_id).exists():
+                self.add_error('login_id', '學生學號已存在。')
+        elif cleaned_data.get('club'):
+            self.add_error('club', '老師帳號不能設定學生社團。')
+
+        password = cleaned_data.get('password')
+        if password != cleaned_data.get('password_confirm'):
+            self.add_error('password_confirm', '兩次輸入的密碼不一致。')
+        elif password:
+            candidate = User(username=login_id, role=role or 'student')
+            try:
+                validate_password(password, candidate)
+            except forms.ValidationError as error:
+                self.add_error('password', error)
         return cleaned_data
 
     def save(self):
         role = self.cleaned_data['role']
+        login_id = self.cleaned_data['login_id']
         user = User(
-            username=generate_unique_username(role),
+            username=login_id,
             role=role,
-            first_name=self.cleaned_data['first_name'],
+            first_name=self.cleaned_data['first_name'].strip(),
             email=self.cleaned_data.get('email', ''),
             is_active=True,
         )
         if role == 'student':
-            user.student_id = generate_unique_student_id()
-            user.class_name = self.cleaned_data.get('class_name', '')
+            user.student_id = login_id
+            user.class_name = self.cleaned_data.get('class_name', '').strip()
             user.seat_number = self.cleaned_data.get('seat_number')
             user.club = self.cleaned_data.get('club')
         user.set_password(self.cleaned_data['password'])
@@ -277,8 +396,6 @@ class ClubAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields.pop('code', None)
-
         current_teacher = get_user_from_display_text(self.instance.teacher)
         current_president = get_user_from_display_text(self.instance.president)
 

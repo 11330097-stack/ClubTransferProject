@@ -1,7 +1,10 @@
 import csv
 import io
 
-from django.db import transaction
+from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
+from django.core.validators import validate_email
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from clubs.models import Club
@@ -10,8 +13,9 @@ from .models import User
 
 
 REQUIRED_STUDENT_IMPORT_FIELDS = [
-    'name',
     'role',
+    'login_id',
+    'name',
     'email',
     'class_name',
     'seat_number',
@@ -20,25 +24,29 @@ REQUIRED_STUDENT_IMPORT_FIELDS = [
 ]
 
 REQUIRED_CLUB_IMPORT_FIELDS = [
+    'code',
     'name',
-    'teacher_username',
-    'president_username',
     'location',
     'max_members',
+]
+
+OPTIONAL_CLUB_IMPORT_FIELDS = [
+    'teacher_email',
+    'president_email',
+    'teacher_username',
+    'president_username',
     'description',
 ]
 
 SAMPLE_STUDENT_IMPORT_CSV = (
-    'name,role,email,class_name,seat_number,club_name,password\n'
-    '王柏翰,student,wang001@example.com,101,1,籃球社,test123\n'
-    '陳冠宇,student,chen002@example.com,101,2,,test123\n'
-    '林建宏,teacher,teacher001@example.com,,,,teacher123'
+    'role,login_id,name,email,class_name,seat_number,club_name,password\n'
+    'student,s000001,測試學生,student@example.invalid,101,1,,Example-Student-937!\n'
+    'teacher,teacher.demo,測試老師,teacher@example.invalid,,,,Example-Teacher-482!'
 )
 
 SAMPLE_CLUB_IMPORT_CSV = (
-    'name,teacher_username,president_username,location,max_members,description\n'
-    '籃球社,teacher001,student001,體育館,30,籃球訓練與比賽\n'
-    '資訊研究社,teacher002,student002,電腦教室,25,資訊與程式設計'
+    'code,name,teacher_username,president_username,location,max_members,description\n'
+    'C001,籃球社,teacher.demo,s000001,體育館,30,籃球訓練與比賽'
 )
 
 
@@ -74,7 +82,13 @@ def import_students_from_csv(csv_file):
                 field: (row.get(field) or '').strip()
                 for field in REQUIRED_STUDENT_IMPORT_FIELDS
             }
-            error = validate_account_import_row(cleaned)
+            cleaned, error = validate_account_import_row(cleaned)
+            if error:
+                result['skipped'] += 1
+                result['errors'].append({'row': row_number, 'reason': error})
+                continue
+
+            user, created, error = resolve_account_import_user(cleaned)
             if error:
                 result['skipped'] += 1
                 result['errors'].append({'row': row_number, 'reason': error})
@@ -90,28 +104,27 @@ def import_students_from_csv(csv_file):
                         'reason': f'Active Club.name={cleaned["club_name"]} not found.',
                     })
                     continue
+                assigned_count = User.objects.filter(
+                    club=club,
+                    role__in=['student', 'president'],
+                    is_active=True,
+                ).exclude(pk=user.pk if user.pk else None).count()
+                if assigned_count >= club.max_members:
+                    result['skipped'] += 1
+                    result['errors'].append({
+                        'row': row_number,
+                        'reason': f'Club.name={club.name} is full.',
+                    })
+                    continue
 
-            user, created = resolve_account_import_user(cleaned)
-            if created:
-                user.username = generate_unique_username(cleaned['role'])
-                if cleaned['role'] == 'student':
-                    user.student_id = generate_unique_student_id()
-
-            user.first_name = cleaned['name']
-            user.email = cleaned['email']
-            user.role = cleaned['role']
-            user.is_active = True
-            if cleaned['role'] == 'student':
-                user.class_name = cleaned['class_name']
-                user.seat_number = int(cleaned['seat_number'])
-                user.club = club
-            else:
-                user.student_id = ''
-                user.class_name = ''
-                user.seat_number = None
-                user.club = None
-            user.set_password(cleaned['password'])
-            user.save()
+            save_result = save_imported_account(user, created, cleaned, club)
+            if save_result['error']:
+                result['skipped'] += 1
+                result['errors'].append({
+                    'row': row_number,
+                    'reason': save_result['error'],
+                })
+                continue
 
             if created:
                 result['created'] += 1
@@ -123,67 +136,131 @@ def import_students_from_csv(csv_file):
     return result
 
 
-def generate_unique_username(role):
-    prefix = 'student' if role == 'student' else 'teacher'
-    return generate_unique_value(prefix, 'username', width=3)
+def normalize_email(value):
+    return (value or '').strip().lower()
 
 
-def generate_unique_student_id():
-    return generate_unique_value('S', 'student_id', width=6)
-
-
-def generate_unique_club_code():
-    existing_values = set(
-        Club.objects.filter(code__startswith='C').values_list('code', flat=True)
-    )
-    number = 1
-    while True:
-        value = f'C{number:03d}'
-        if value not in existing_values:
-            return value
-        number += 1
-
-
-def generate_unique_value(prefix, field_name, width):
-    existing_values = set(
-        User.objects.filter(**{f'{field_name}__startswith': prefix})
-        .values_list(field_name, flat=True)
-    )
-    number = 1
-    while True:
-        value = f'{prefix}{number:0{width}d}'
-        if value not in existing_values:
-            return value
-        number += 1
+def normalize_login_id(value):
+    return (value or '').strip().lower()
 
 
 def validate_account_import_row(row):
-    if not row['name']:
-        return 'name is required.'
     if row['role'] not in ['student', 'teacher']:
-        return 'role must be student or teacher.'
-    if not row['password']:
-        return 'password is required.'
-    if row['role'] == 'student':
-        if not row['class_name']:
-            return 'class_name is required for student.'
-        if not row['seat_number']:
-            return 'seat_number is required for student.'
+        return None, 'role must be student or teacher; president cannot be imported.'
+
+    login_id = normalize_login_id(row['login_id'])
+    if not login_id:
+        return None, 'login_id is required.'
+    if len(login_id) > User._meta.get_field('username').max_length:
+        return None, 'login_id is too long.'
+
+    if not row['name']:
+        return None, 'name is required.'
+
+    email = normalize_email(row['email'])
+    if email:
         try:
-            seat_number = int(row['seat_number'])
-        except ValueError:
-            return 'seat_number must be an integer.'
-        if seat_number < 1 or seat_number > 99:
-            return 'seat_number must be between 1 and 99.'
-    return None
+            validate_email(email)
+        except ValidationError:
+            return None, 'email must be a valid email address.'
+
+    if row['role'] == 'student':
+        if len(login_id) > User._meta.get_field('student_id').max_length:
+            return None, 'student login_id is too long for the student ID field.'
+        if row.get('seat_number'):
+            try:
+                seat_number = int(row['seat_number'])
+            except ValueError:
+                return None, 'seat_number must be an integer.'
+            if seat_number < 1 or seat_number > 99:
+                return None, 'seat_number must be between 1 and 99.'
+    elif row.get('club_name'):
+        return None, 'teacher rows cannot specify club_name.'
+
+    cleaned = dict(row)
+    cleaned['login_id'] = login_id
+    cleaned['email'] = email
+    return cleaned, None
 
 
 def resolve_account_import_user(row):
+    username_matches = list(
+        User.objects.select_for_update().filter(username__iexact=row['login_id'])
+    )
+    if len(username_matches) > 1:
+        return None, False, 'login_id maps to multiple accounts.'
+    user = username_matches[0] if username_matches else None
+
+    if row['role'] == 'student':
+        student_matches = list(
+            User.objects.select_for_update().filter(student_id__iexact=row['login_id'])
+        )
+        if len(student_matches) > 1:
+            return None, False, 'student ID maps to multiple accounts.'
+        if student_matches and user and student_matches[0].pk != user.pk:
+            return None, False, 'login_id and student ID map to different accounts.'
+        if student_matches and not user:
+            return None, False, 'student ID is already used by a different login account.'
+
     if row['email']:
-        user = User.objects.filter(email=row['email'], role=row['role']).first()
-        if user:
-            return user, False
-    return User(), True
+        email_matches = list(
+            User.objects.select_for_update().filter(email__iexact=row['email'])
+        )
+        if len(email_matches) > 1:
+            return None, False, 'email maps to multiple accounts.'
+        if email_matches and (not user or email_matches[0].pk != user.pk):
+            return None, False, 'email is already used by another account.'
+
+    if user:
+        if user.is_superuser or user.role == 'admin':
+            return None, False, 'administrator accounts cannot be updated by account import.'
+        compatible = (
+            (row['role'] == 'student' and user.role in ['student', 'president'])
+            or (row['role'] == 'teacher' and user.role == 'teacher')
+        )
+        if not compatible:
+            return None, False, 'existing account has an incompatible role.'
+        return user, False, None
+
+    return User(username=row['login_id'], role=row['role']), True, None
+
+
+def save_imported_account(user, created, row, club):
+    password = row['password']
+    if created and not password:
+        return {'error': 'password is required for a new account.'}
+    if password:
+        try:
+            validate_password(password, user)
+        except ValidationError as error:
+            return {'error': 'password does not meet security requirements: ' + ' '.join(error.messages)}
+
+    user.username = row['login_id']
+    user.first_name = row['name'].strip()
+    user.email = row['email']
+    user.is_active = True
+    if row['role'] == 'student':
+        if user.role != 'president':
+            user.role = 'student'
+        user.student_id = row['login_id']
+        user.class_name = row['class_name'].strip()
+        user.seat_number = int(row['seat_number']) if row['seat_number'] else None
+        user.club = club
+    else:
+        user.role = 'teacher'
+        user.student_id = ''
+        user.class_name = ''
+        user.seat_number = None
+        user.club = None
+    if password:
+        user.set_password(password)
+
+    try:
+        with transaction.atomic():
+            user.save()
+    except IntegrityError:
+        return {'error': 'account conflicts with an existing login ID, student ID, or email.'}
+    return {'error': None}
 
 
 def import_clubs_from_csv(csv_file):
@@ -216,11 +293,10 @@ def import_clubs_from_csv(csv_file):
         for row_number, row in enumerate(reader, start=2):
             cleaned = {
                 field: (row.get(field) or '').strip()
-                for field in REQUIRED_CLUB_IMPORT_FIELDS
+                for field in REQUIRED_CLUB_IMPORT_FIELDS + OPTIONAL_CLUB_IMPORT_FIELDS
             }
-            cleaned['description'] = (row.get('description') or '').strip()
 
-            existing_club = Club.objects.filter(name=cleaned['name']).first()
+            existing_club = Club.objects.filter(code=cleaned['code']).first()
             teacher, president, error = validate_club_import_row(cleaned, existing_club)
             if error:
                 result['skipped'] += 1
@@ -232,7 +308,7 @@ def import_clubs_from_csv(csv_file):
                 created = False
             else:
                 club = Club.objects.create(
-                    code=generate_unique_club_code(),
+                    code=cleaned['code'],
                     name=cleaned['name'],
                 )
                 created = True
@@ -280,6 +356,8 @@ def import_clubs_from_csv(csv_file):
 
 
 def validate_club_import_row(row, existing_club=None):
+    if not row['code']:
+        return None, None, 'code is required.'
     if not row['name']:
         return None, None, 'name is required.'
 
@@ -291,16 +369,26 @@ def validate_club_import_row(row, existing_club=None):
         return None, None, 'max_members must be a positive integer.'
 
     teacher = None
-    if row['teacher_username']:
-        teacher = User.objects.filter(username=row['teacher_username']).first()
+    teacher_identity = row.get('teacher_email') or row.get('teacher_username')
+    if teacher_identity:
+        teacher = (
+            User.objects.filter(email__iexact=teacher_identity).first()
+            if row.get('teacher_email')
+            else User.objects.filter(username=teacher_identity).first()
+        )
         if not teacher or teacher.role != 'teacher' or not teacher.is_active:
             return None, None, (
-                f'teacher_username={row["teacher_username"]} must be an active teacher.'
+                f'teacher={teacher_identity} must be an active teacher.'
             )
 
     president = None
-    if row['president_username']:
-        president = User.objects.filter(username=row['president_username']).first()
+    president_identity = row.get('president_email') or row.get('president_username')
+    if president_identity:
+        president = (
+            User.objects.filter(email__iexact=president_identity).first()
+            if row.get('president_email')
+            else User.objects.filter(username=president_identity).first()
+        )
         is_current_president = (
             existing_club
             and president
@@ -316,7 +404,7 @@ def validate_club_import_row(row, existing_club=None):
         )
         if not is_current_president and not is_available_student:
             return None, None, (
-                f'president_username={row["president_username"]} '
+                f'president={president_identity} '
                 'must be an active unassigned student.'
             )
 
@@ -341,45 +429,6 @@ def format_import_user_display_text(user):
     return f'{display_name} ({user.username})'
 
 
-def validate_student_import_row(row):
-    required_values = ['username', 'student_id', 'class_name', 'seat_number', 'name', 'club_name']
-    for field in required_values:
-        if not row[field]:
-            return f'{field} is required.'
-    try:
-        seat_number = int(row['seat_number'])
-    except ValueError:
-        return 'seat_number must be an integer.'
-    if seat_number < 1 or seat_number > 36:
-        return 'seat_number must be between 1 and 36.'
-    return None
-
-
-def resolve_student_import_user(row):
-    username_user = User.objects.filter(username=row['username']).first()
-    student_id_users = User.objects.filter(student_id=row['student_id'])
-    student_id_count = student_id_users.count()
-
-    if student_id_count > 1:
-        return None, False, f'student_id={row["student_id"]} already maps to multiple accounts.'
-
-    student_id_user = student_id_users.first()
-
-    if username_user and student_id_user and username_user.pk != student_id_user.pk:
-        return None, False, (
-            f'username={row["username"]} and student_id={row["student_id"]} '
-            'map to different accounts.'
-        )
-
-    if username_user:
-        return username_user, False, None
-
-    if student_id_user:
-        return student_id_user, False, None
-
-    return User(), True, None
-
-
 def recalculate_club_current_members():
     for club in Club.objects.all():
         club.current_members = User.objects.filter(
@@ -401,6 +450,15 @@ def has_student_history(student):
 def clear_president_assignment(student):
     if student.role == 'president':
         Club.objects.filter(president__icontains=f'({student.username})').update(president='')
+
+
+def get_active_president_club(student):
+    query = Q(president__iexact=student.username) | Q(
+        president__icontains=f'({student.username})'
+    )
+    if student.role == 'president' and student.club_id:
+        query |= Q(pk=student.club_id)
+    return Club.objects.filter(is_active=True).filter(query).first()
 
 
 def clear_teacher_assignment(teacher):
@@ -434,6 +492,9 @@ def deactivate_student(student):
 
 
 def safely_delete_student(student):
+    if get_active_president_club(student):
+        return 'president_requires_replacement'
+
     clear_president_assignment(student)
 
     if has_student_history(student):

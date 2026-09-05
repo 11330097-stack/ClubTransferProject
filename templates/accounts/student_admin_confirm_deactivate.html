@@ -6,7 +6,7 @@
 <h1 class="h3 mb-3">停用學生/社長帳號</h1>
 
 <div class="alert alert-warning">
-    確定要停用 {{ student.first_name|default:student.username }} ({{ student.username }}) 嗎？資料不會被刪除。
+    確定要停用 {{ student.first_name|default:student.username }} ({{ student.email|default:student.username }}) 嗎？資料不會被刪除。
 </div>
 
 <form method="post">

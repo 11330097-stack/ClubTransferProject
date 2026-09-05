@@ -9,7 +9,7 @@
     <p class="mb-2">
         請確認是否要刪除指導老師帳號：
         <strong>{{ teacher.first_name|default:teacher.username }}</strong>
-        ({{ teacher.username }})
+        ({{ teacher.email|default:teacher.username }})
     </p>
     <p class="mb-0">
         如果此指導老師已有審核紀錄，系統會為了保留歷史資料而改為停用帳號，不會真正刪除。
@@ -18,8 +18,8 @@
 </div>
 
 <dl class="row">
-    <dt class="col-sm-2">Username</dt>
-    <dd class="col-sm-10">{{ teacher.username }}</dd>
+    <dt class="col-sm-2">Email</dt>
+    <dd class="col-sm-10">{{ teacher.email|default:teacher.username }}</dd>
     <dt class="col-sm-2">姓名</dt>
     <dd class="col-sm-10">{{ teacher.first_name|default:"-" }}</dd>
     <dt class="col-sm-2">Email</dt>

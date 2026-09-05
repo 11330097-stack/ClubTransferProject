@@ -17,7 +17,7 @@
                         <td>{{ user.get_full_name|default:user.username }}</td>
                     </tr>
                     <tr>
-                        <td class="text-muted">帳號</td>
+                        <td class="text-muted">登入帳號</td>
                         <td>{{ user.username }}</td>
                     </tr>
                     {% if not user.is_superuser and user.role != 'admin' %}
