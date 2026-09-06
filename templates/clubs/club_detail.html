@@ -8,9 +8,10 @@
     <div class="col-md-8">
         <div class="card shadow">
             <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">{{ club.name }}</h4>
+                <div class="d-flex align-items-center justify-content-between gap-2"><h4 class="mb-0">{{ club.name }}</h4><span class="badge {% if club.is_active %}bg-success{% else %}bg-secondary{% endif %}">{% if club.is_active %}啟用中{% else %}已停用{% endif %}</span></div>
             </div>
             <div class="card-body">
+                {% if not club.is_active %}<div class="state-banner state-banner--warning m-0 mb-4" role="status"><svg aria-hidden="true"><use href="#icon-alert"></use></svg><div><strong>此社團目前已停用</strong><p>資料與歷史紀錄仍保留，但目前不接受社員或轉社申請。</p></div></div>{% endif %}
                 <h6 class="text-muted">社團描述</h6>
                 <p>{{ club.description|default:"暫無描述"|linebreaks }}</p>
 
@@ -39,11 +40,14 @@
             </div>
             <div class="card-footer">
                 <a href="{% url 'club_list' %}" class="btn btn-secondary">返回列表</a>
-                {% if user.role == 'student' and transfer_window_is_open %}
-                    {% if club.has_available_slots %}
+                {% if user.role == 'student' %}
+                    {% if not club.is_active %}<span class="state-hint">此社團已停用，無法申請轉入。</span>
+                    {% elif user.club_id == club.pk %}<span class="state-hint">這是您目前所屬的社團。</span>
+                    {% elif not transfer_window_is_open %}<span class="state-hint">目前未開放轉社申請。</span>
+                    {% elif club.has_available_slots %}
                         <a href="{% url 'transfer_apply' %}?target_club={{ club.pk }}" class="btn btn-primary">申請轉入</a>
                     {% else %}
-                        <button class="btn btn-secondary" disabled>已額滿</button>
+                        <span class="state-hint">此社團已額滿，目前無法申請轉入。</span>
                     {% endif %}
                 {% endif %}
             </div>
@@ -78,7 +82,7 @@
                             {% endif %}
                         </li>
                     {% empty %}
-                        <li class="list-group-item text-muted">暫無成員</li>
+                        <li class="list-group-item text-muted">目前沒有社團成員；完成帳號分配後會顯示在這裡。</li>
                     {% endfor %}
                 </ul>
             </div>

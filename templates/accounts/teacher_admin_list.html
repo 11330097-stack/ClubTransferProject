@@ -75,7 +75,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="6" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-users"></use></svg><strong>沒有符合條件的指導老師</strong><p>請調整搜尋關鍵字，或新增指導老師帳號。</p></div></td>
+                    <td colspan="6" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-users"></use></svg>{% if q %}<strong>找不到符合搜尋條件的指導老師</strong><p>老師資料仍保留；請嘗試其他搜尋字詞。</p><a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-primary btn-sm">清除搜尋</a>{% else %}<strong>目前沒有指導老師帳號</strong><p>新增老師後，帳號會顯示在這裡。</p><a href="{% url 'teacher_admin_create' %}" class="btn btn-primary btn-sm">新增指導老師</a>{% endif %}</div></td>
                 </tr>
             {% endfor %}
         </tbody>

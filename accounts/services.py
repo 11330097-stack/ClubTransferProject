@@ -69,7 +69,7 @@ def import_students_from_csv(csv_file):
     try:
         decoded = csv_file.read().decode('utf-8-sig')
     except UnicodeDecodeError:
-        result['errors'].append({'row': '-', 'reason': 'CSV must use UTF-8 encoding.'})
+        result['errors'].append({'row': '-', 'reason': 'CSV 檔案必須使用 UTF-8 編碼。'})
         return result
 
     reader = csv.DictReader(io.StringIO(decoded))
@@ -80,7 +80,7 @@ def import_students_from_csv(csv_file):
     if missing_fields:
         result['errors'].append({
             'row': '-',
-            'reason': f'Missing CSV fields: {", ".join(missing_fields)}',
+            'reason': f'CSV 缺少必要欄位：{", ".join(missing_fields)}。',
         })
         return result
 
@@ -102,14 +102,14 @@ def import_students_from_csv(csv_file):
                 result['skipped'] += 1
                 result['errors'].append({
                     'row': row_number,
-                    'reason': 'duplicate login_id in this CSV file.',
+                    'reason': '同一份 CSV 中的 login_id 重複。',
                 })
                 continue
             if cleaned['email'] and cleaned['email'] in seen_emails:
                 result['skipped'] += 1
                 result['errors'].append({
                     'row': row_number,
-                    'reason': 'duplicate email in this CSV file.',
+                    'reason': '同一份 CSV 中的 email 重複。',
                 })
                 continue
 
@@ -128,7 +128,7 @@ def import_students_from_csv(csv_file):
                     result['skipped'] += 1
                     result['errors'].append({
                         'row': row_number,
-                        'reason': f'Active Club.name={cleaned["club_name"]} not found.',
+                        'reason': f'找不到啟用中的社團「{cleaned["club_name"]}」。',
                     })
                     continue
 
@@ -141,7 +141,7 @@ def import_students_from_csv(csv_file):
                 result['skipped'] += 1
                 result['errors'].append({
                     'row': row_number,
-                    'reason': 'student has an active transfer request; club cannot be changed.',
+                    'reason': '學生有進行中的轉社申請，目前不能變更所屬社團。',
                 })
                 continue
 
@@ -153,7 +153,7 @@ def import_students_from_csv(csv_file):
                     result['skipped'] += 1
                     result['errors'].append({
                         'row': row_number,
-                        'reason': f'Club.name={club.name} is full.',
+                        'reason': f'社團「{club.name}」已額滿。',
                     })
                     continue
 
@@ -189,36 +189,36 @@ def normalize_login_id(value):
 
 def validate_account_import_row(row):
     if row['role'] not in ['student', 'teacher']:
-        return None, 'role must be student or teacher; president cannot be imported.'
+        return None, 'role 只接受 student 或 teacher；社長資料請從社團管理流程更新。'
 
     login_id = normalize_login_id(row['login_id'])
     if not login_id:
-        return None, 'login_id is required.'
+        return None, 'login_id 為必填欄位。'
     if len(login_id) > User._meta.get_field('username').max_length:
-        return None, 'login_id is too long.'
+        return None, 'login_id 超過允許長度。'
 
     if not row['name']:
-        return None, 'name is required.'
+        return None, 'name 為必填欄位。'
 
     email = normalize_email(row['email'])
     if email:
         try:
             validate_email(email)
         except ValidationError:
-            return None, 'email must be a valid email address.'
+            return None, 'email 格式不正確。'
 
     if row['role'] == 'student':
         if len(login_id) > User._meta.get_field('student_id').max_length:
-            return None, 'student login_id is too long for the student ID field.'
+            return None, '學生 login_id 超過學號欄位允許長度。'
         if row.get('seat_number'):
             try:
                 seat_number = int(row['seat_number'])
             except ValueError:
-                return None, 'seat_number must be an integer.'
+                return None, 'seat_number 必須是整數。'
             if seat_number < 1 or seat_number > 99:
-                return None, 'seat_number must be between 1 and 99.'
+                return None, 'seat_number 必須介於 1 到 99。'
     elif row.get('club_name'):
-        return None, 'teacher rows cannot specify club_name.'
+        return None, '老師資料列不能設定 club_name。'
 
     cleaned = dict(row)
     cleaned['login_id'] = login_id
@@ -231,7 +231,7 @@ def resolve_account_import_user(row):
         User.objects.select_for_update().filter(username__iexact=row['login_id'])
     )
     if len(username_matches) > 1:
-        return None, False, 'login_id maps to multiple accounts.'
+        return None, False, 'login_id 對應到多個帳號，無法安全更新。'
     user = username_matches[0] if username_matches else None
 
     if row['role'] == 'student':
@@ -239,32 +239,32 @@ def resolve_account_import_user(row):
             User.objects.select_for_update().filter(student_id__iexact=row['login_id'])
         )
         if len(student_matches) > 1:
-            return None, False, 'student ID maps to multiple accounts.'
+            return None, False, '學號對應到多個帳號，無法安全更新。'
         if student_matches and user and student_matches[0].pk != user.pk:
-            return None, False, 'login_id and student ID map to different accounts.'
+            return None, False, 'login_id 與學號對應到不同帳號。'
         if student_matches and not user:
-            return None, False, 'student ID is already used by a different login account.'
+            return None, False, '此學號已由其他登入帳號使用。'
 
     if row['email']:
         email_matches = list(
             User.objects.select_for_update().filter(email__iexact=row['email'])
         )
         if len(email_matches) > 1:
-            return None, False, 'email maps to multiple accounts.'
+            return None, False, 'email 對應到多個帳號，無法安全更新。'
         if email_matches and (not user or email_matches[0].pk != user.pk):
-            return None, False, 'email is already used by another account.'
+            return None, False, '此 email 已由其他帳號使用。'
 
     if user:
         if user.is_superuser or user.role == 'admin':
-            return None, False, 'administrator accounts cannot be updated by account import.'
+            return None, False, '管理員帳號不能透過帳號匯入更新。'
         compatible = (
             (row['role'] == 'student' and user.role in ['student', 'president'])
             or (row['role'] == 'teacher' and user.role == 'teacher')
         )
         if not compatible:
-            return None, False, 'existing account has an incompatible role.'
+            return None, False, '既有帳號的身分與匯入資料不相容。'
         if user.role == 'president':
-            return None, False, 'president accounts must be updated through the club workflow.'
+            return None, False, '社長帳號必須從社團管理流程更新。'
         return user, False, None
 
     return User(username=row['login_id'], role=row['role']), True, None
@@ -273,12 +273,12 @@ def resolve_account_import_user(row):
 def save_imported_account(user, created, row, club):
     password = row['password']
     if created and not password:
-        return {'error': 'password is required for a new account.'}
+        return {'error': '建立新帳號時 password 為必填欄位。'}
     if password:
         try:
             validate_password(password, user)
         except ValidationError as error:
-            return {'error': 'password does not meet security requirements: ' + ' '.join(error.messages)}
+            return {'error': '密碼不符合安全要求：' + ' '.join(error.messages)}
 
     user.username = row['login_id']
     user.first_name = row['name'].strip()
@@ -304,7 +304,7 @@ def save_imported_account(user, created, row, club):
         with transaction.atomic():
             user.save()
     except IntegrityError:
-        return {'error': 'account conflicts with an existing login ID, student ID, or email.'}
+        return {'error': '帳號與既有的 login_id、學號或 email 衝突。'}
     return {'error': None}
 
 
@@ -319,7 +319,7 @@ def import_clubs_from_csv(csv_file):
     try:
         decoded = csv_file.read().decode('utf-8-sig')
     except UnicodeDecodeError:
-        result['errors'].append({'row': '-', 'reason': 'CSV must use UTF-8 encoding.'})
+        result['errors'].append({'row': '-', 'reason': 'CSV 檔案必須使用 UTF-8 編碼。'})
         return result
 
     reader = csv.DictReader(io.StringIO(decoded))
@@ -330,7 +330,7 @@ def import_clubs_from_csv(csv_file):
     if missing_fields:
         result['errors'].append({
             'row': '-',
-            'reason': f'Missing CSV fields: {", ".join(missing_fields)}',
+            'reason': f'CSV 缺少必要欄位：{", ".join(missing_fields)}。',
         })
         return result
 
@@ -346,7 +346,7 @@ def import_clubs_from_csv(csv_file):
                 result['skipped'] += 1
                 result['errors'].append({
                     'row': row_number,
-                    'reason': 'duplicate code in this CSV file.',
+                    'reason': '同一份 CSV 中的社團 code 重複。',
                 })
                 continue
 
@@ -412,21 +412,21 @@ def import_clubs_from_csv(csv_file):
 
 def validate_club_import_row(row, existing_club=None):
     if not row['code']:
-        return None, None, 'code is required.'
+        return None, None, 'code 為必填欄位。'
     if not row['name']:
-        return None, None, 'name is required.'
+        return None, None, 'name 為必填欄位。'
 
     try:
         max_members = int(row['max_members'])
     except ValueError:
-        return None, None, 'max_members must be a positive integer.'
+        return None, None, 'max_members 必須是大於 0 的整數。'
     if max_members < 1:
-        return None, None, 'max_members must be a positive integer.'
+        return None, None, 'max_members 必須是大於 0 的整數。'
 
     teacher = None
     teacher_identity = row.get('teacher_email') or row.get('teacher_username')
     if not teacher_identity:
-        return None, None, 'teacher is required for an active club.'
+        return None, None, '啟用中的社團必須設定 teacher。'
     teacher = (
         User.objects.filter(email__iexact=teacher_identity).first()
         if row.get('teacher_email')
@@ -434,13 +434,13 @@ def validate_club_import_row(row, existing_club=None):
     )
     if not teacher or teacher.role != 'teacher' or not teacher.is_active:
         return None, None, (
-            f'teacher={teacher_identity} must be an active teacher.'
+            f'找不到啟用中的指導老師「{teacher_identity}」。'
         )
 
     president = None
     president_identity = row.get('president_email') or row.get('president_username')
     if not president_identity:
-        return None, None, 'president is required for an active club.'
+        return None, None, '啟用中的社團必須設定 president。'
     president = (
         User.objects.filter(email__iexact=president_identity).first()
         if row.get('president_email')
@@ -461,14 +461,13 @@ def validate_club_import_row(row, existing_club=None):
     )
     if not is_current_president and not is_available_student:
         return None, None, (
-            f'president={president_identity} '
-            'must be an active unassigned student.'
+            f'社長「{president_identity}」必須是啟用中且尚未分配社團的學生。'
         )
 
     existing_member_count = existing_club.get_actual_member_count() if existing_club else 0
     added_president_count = int(not existing_club or president.club_id != existing_club.pk)
     if existing_member_count + added_president_count > max_members:
-        return None, None, 'max_members cannot be lower than the resulting active membership.'
+        return None, None, 'max_members 不可低於更新後的啟用中社員人數。'
 
     return teacher, president, None
 

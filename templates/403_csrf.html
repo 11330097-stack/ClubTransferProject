@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}頁面已逾期｜社團轉社系統{% endblock %}
+
+{% block content %}
+<section class="state-page" aria-labelledby="error-title">
+    <div class="state-panel state-panel--warning">
+        <svg class="state-panel__icon" aria-hidden="true"><use href="#icon-clock"></use></svg>
+        <p class="state-panel__eyebrow">安全驗證已逾期</p>
+        <h1 id="error-title" class="state-panel__title">此頁面已失效，操作未送出</h1>
+        <p class="state-panel__description">為保護您的資料，系統沒有執行這次變更。請返回儀表板、重新開啟功能後再送出。</p>
+        <div class="state-panel__actions"><a href="{% url 'home' %}" class="btn btn-primary">返回儀表板</a></div>
+    </div>
+</section>
+{% endblock %}

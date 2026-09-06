@@ -34,14 +34,14 @@
     {% csrf_token %}
 </form>
 
-<div class="bulk-action-bar" data-selection-checkbox=".student-checkbox" data-selection-master="#toggle-all-students">
+{% if students %}<div class="bulk-action-bar" data-selection-checkbox=".student-checkbox" data-selection-master="#toggle-all-students">
     <span class="bulk-selection-count"><strong data-selected-count>0</strong> 個已選取</span>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-students" data-select-all>全選</button>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-students" data-clear-selection>取消全選</button>
     <button type="submit" class="btn btn-outline-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_deactivate' %}" data-confirm-message="停用已選取的 {count} 位學生？帳號資料與歷史紀錄會保留。" data-submitting-label="正在停用…">批次停用</button>
     <button type="submit" class="btn btn-outline-success btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_reactivate' %}" data-confirm-message="重新啟用已選取的 {count} 位學生？" data-submitting-label="正在啟用…">批次重新啟用</button>
-    <button type="submit" class="btn btn-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_delete_confirm' %}">批次刪除</button>
-</div>
+    <button type="submit" class="btn btn-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_delete_confirm' %}" data-submitting-label="正在準備…">批次刪除</button>
+</div>{% endif %}
 
 <div class="table-responsive data-table-container">
     <table class="table data-table data-table--dense data-table--sticky-header align-middle">
@@ -93,7 +93,7 @@
                         {% if student.is_active and student.role == 'student' %}
                             <form method="post" action="{% url 'student_admin_promote_president' student.pk %}" class="d-inline" data-workflow-form data-confirm-message="將 {{ student.first_name|default:student.username }} 設為 {{ student.club.name }} 的社長？目前社長會改為一般學生並留在該社團。">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-success">晉升為社長</button>
+                                <button type="submit" class="btn btn-sm btn-outline-success" data-submitting-label="正在晉升…">晉升為社長</button>
                             </form>
                         {% endif %}
                         {% if student.role == 'student' or student.role == 'president' %}
@@ -112,7 +112,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="11" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-users"></use></svg><strong>沒有符合條件的學生</strong><p>請調整搜尋關鍵字，或新增學生帳號。</p></div></td>
+                    <td colspan="11" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-users"></use></svg>{% if q %}<strong>找不到符合搜尋條件的學生</strong><p>學生資料仍保留；請嘗試其他搜尋字詞。</p><a href="{% url 'student_admin_list' %}" class="btn btn-outline-primary btn-sm">清除搜尋</a>{% else %}<strong>目前沒有學生帳號</strong><p>新增或匯入學生後，帳號會顯示在這裡。</p><a href="{% url 'student_admin_create' %}" class="btn btn-primary btn-sm">新增學生</a>{% endif %}</div></td>
                 </tr>
             {% endfor %}
         </tbody>

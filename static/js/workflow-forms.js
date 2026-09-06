@@ -32,8 +32,13 @@
 
             form.dataset.submitting = 'true';
             form.setAttribute('aria-busy', 'true');
-            form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((button) => {
+            const localButtons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
+            const linkedButtons = form.id
+                ? Array.from(document.querySelectorAll(`button[form="${form.id}"], input[form="${form.id}"]`))
+                : [];
+            Array.from(new Set([...localButtons, ...linkedButtons])).forEach((button) => {
                 button.disabled = true;
+                if (button === event.submitter) button.classList.add('is-processing');
                 if (button.tagName === 'BUTTON') {
                     button.dataset.originalLabel = button.textContent.trim();
                     button.textContent = button.dataset.submittingLabel || '處理中…';
@@ -58,5 +63,20 @@
         const update = () => output.textContent = input.files?.[0]?.name || '尚未選擇檔案';
         input.addEventListener('change', update);
         update();
+    });
+
+    const errorSummary = document.querySelector('.form-error-summary');
+    if (errorSummary) errorSummary.focus();
+
+    document.querySelectorAll('[data-auto-dismiss]').forEach((alert) => {
+        const delay = Number(alert.dataset.autoDismiss);
+        if (!Number.isFinite(delay) || delay <= 0) return;
+        window.setTimeout(() => {
+            if (window.bootstrap?.Alert) {
+                window.bootstrap.Alert.getOrCreateInstance(alert).close();
+            } else {
+                alert.remove();
+            }
+        }, delay);
     });
 })();

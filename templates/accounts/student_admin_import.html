@@ -1,28 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}帳號建立與 CSV 匯入{% endblock %}
+{% block title %}匯入帳號 CSV{% endblock %}
 
 {% block content %}
 <div class="form-page form-page--wide">
-    <div class="page-header"><div><h1>帳號建立與 CSV 匯入</h1><p class="page-header-description">可建立單一帳號，或使用 CSV 批次新增與更新學生、老師帳號。</p></div><a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">返回帳號管理</a></div>
-
-    <form method="post" class="form-shell mb-4" data-workflow-form novalidate>
-        {% csrf_token %}
-        <div class="form-intro"><h2>新增單一帳號</h2><p>學生的登入帳號同時是學號；老師帳號不能設定學生社團。</p></div>
-        {% include "includes/form_error_summary.html" with form=single_form %}
-        <section class="form-section"><div class="form-grid">
-            {% include "includes/form_field.html" with field=single_form.role %}
-            {% include "includes/form_field.html" with field=single_form.login_id %}
-            {% include "includes/form_field.html" with field=single_form.first_name %}
-            {% include "includes/form_field.html" with field=single_form.email %}
-            {% include "includes/form_field.html" with field=single_form.class_name %}
-            {% include "includes/form_field.html" with field=single_form.seat_number %}
-            <div class="form-field--full">{% include "includes/form_field.html" with field=single_form.club %}</div>
-            {% include "includes/form_field.html" with field=single_form.password %}
-            {% include "includes/form_field.html" with field=single_form.password_confirm %}
-        </div></section>
-        <div class="form-actions"><button type="submit" name="create_one" class="btn btn-primary" data-submitting-label="正在建立…">建立單一帳號</button></div>
-    </form>
+    <div class="page-header"><div><h1>匯入帳號 CSV</h1><p class="page-header-description">使用 CSV 批次新增或更新學生、老師帳號。</p></div><a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">返回帳號管理</a></div>
 
     <form method="post" enctype="multipart/form-data" class="form-shell mb-4" data-workflow-form novalidate>
         {% csrf_token %}
@@ -39,6 +21,7 @@
     {% if result %}
     <section class="form-shell mb-4" aria-labelledby="account-import-result-heading">
         <div class="form-intro"><h2 id="account-import-result-heading">匯入結果</h2></div>
+        {% if result.errors %}<div class="state-banner {% if result.created or result.updated %}state-banner--warning{% else %}state-banner--error{% endif %}" role="alert"><svg aria-hidden="true"><use href="#icon-alert"></use></svg><div><strong>{% if result.created or result.updated %}匯入完成，部分資料未處理{% else %}匯入未完成{% endif %}</strong><p>{% if result.created or result.updated %}已成功保留可處理的資料；請修正下列資料列後重新匯入。{% else %}沒有帳號被建立或更新；請依下列原因修正檔案後重試。{% endif %}</p></div></div>{% else %}<div class="state-banner state-banner--success" role="status"><svg aria-hidden="true"><use href="#icon-check"></use></svg><div><strong>匯入完成</strong><p>CSV 中可處理的帳號資料均已完成。</p></div></div>{% endif %}
         <div class="form-section"><div class="result-summary"><div class="result-summary-item"><strong>{{ result.created }}</strong>新增</div><div class="result-summary-item"><strong>{{ result.updated }}</strong>更新</div><div class="result-summary-item"><strong>{{ result.skipped }}</strong>略過</div><div class="result-summary-item"><strong>{{ result.errors|length }}</strong>失敗</div></div></div>
         {% if result.errors %}<div class="table-responsive data-table-container"><table class="table data-table table-sm"><thead><tr><th>列</th><th>原因</th></tr></thead><tbody>{% for error in result.errors %}<tr><td class="data-numeric">{{ error.row }}</td><td class="data-wrap">{{ error.reason }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
     </section>

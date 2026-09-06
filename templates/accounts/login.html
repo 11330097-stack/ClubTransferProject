@@ -11,7 +11,7 @@
             </div>
             <div class="card-body">
                 <p class="text-muted">學生請使用學號登入；老師與管理員請使用管理員指派的帳號登入。</p>
-                <form method="post">
+                <form method="post" data-workflow-form>
                     {% csrf_token %}
                     <div class="mb-3">
                         <label for="id_username" class="form-label">帳號</label>
@@ -21,7 +21,7 @@
                         <label for="id_password" class="form-label">密碼</label>
                         <input type="password" name="password" id="id_password" class="form-control" required>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">登入</button>
+                    <button type="submit" class="btn btn-primary w-100" data-submitting-label="登入中…">登入</button>
                 </form>
             </div>
             <div class="card-footer text-muted text-center">

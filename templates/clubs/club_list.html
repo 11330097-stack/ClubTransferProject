@@ -85,7 +85,8 @@
         <div class="data-empty data-empty-cell">
             <svg class="data-empty-icon" aria-hidden="true"><use href="#icon-building"></use></svg>
             <strong>{% if q %}找不到符合的社團{% else %}目前沒有社團資料{% endif %}</strong>
-            <p>{% if q %}請嘗試其他搜尋關鍵字。{% else %}社團建立後會顯示在這裡。{% endif %}</p>
+            <p>{% if q %}社團資料仍保留；請嘗試其他搜尋關鍵字。{% else %}社團建立後會顯示在這裡。{% endif %}</p>
+            {% if q %}<a href="{% url 'club_list' %}" class="btn btn-outline-primary btn-sm">清除搜尋</a>{% endif %}
         </div>
     </div>
     {% endfor %}

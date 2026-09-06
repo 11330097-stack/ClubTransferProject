@@ -72,10 +72,11 @@
     {% endif %}
 
         {% if messages %}
-            <div class="app-message-stack" aria-label="系統訊息">
+            <div class="app-message-stack" aria-label="系統訊息" aria-live="polite">
                 {% for message in messages %}
-                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
-                        {{ message }}
+                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show app-message" role="{% if message.tags == 'error' or message.tags == 'warning' %}alert{% else %}status{% endif %}"{% if message.tags == 'success' %} data-auto-dismiss="7000"{% elif message.tags == 'info' %} data-auto-dismiss="9000"{% endif %}>
+                        <svg class="app-message__icon" aria-hidden="true"><use href="{% if message.tags == 'success' %}#icon-check{% elif message.tags == 'error' or message.tags == 'warning' %}#icon-alert{% else %}#icon-file{% endif %}"></use></svg>
+                        <div class="app-message__content">{{ message }}</div>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="關閉訊息"></button>
                     </div>
                 {% endfor %}

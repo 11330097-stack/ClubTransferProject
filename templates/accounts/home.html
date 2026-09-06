@@ -1,110 +1,75 @@
 {% extends 'base.html' %}
-{% load account_extras %}
 
-{% block title %}社團轉社系統{% endblock %}
+{% block title %}首頁｜社團轉社系統{% endblock %}
 
 {% block content %}
-<section class="py-4 py-md-5">
-    <div class="row align-items-center g-4">
-        <div class="col-lg-7">
-            <h1 class="display-5 fw-bold mb-3">社團轉社系統</h1>
-            <div class="alert alert-light border mb-4">
-                <div class="fw-semibold">轉社申請期間</div>
-                {% if transfer_window %}
-                    <div>轉社期間：{{ transfer_window.start_date|date:"Y/m/d" }} ~ {{ transfer_window.end_date|date:"Y/m/d" }}</div>
-                    {% if transfer_window_status == 'paused' %}
-                        <div class="text-muted">轉社申請目前暫停</div>
-                    {% elif transfer_window_status == 'not_started' %}
-                        <div class="text-muted">轉社尚未開始</div>
-                    {% elif transfer_window_status == 'ended' %}
-                        <div class="text-muted">本學期轉社已截止</div>
-                    {% endif %}
-                {% else %}
-                    <div class="text-muted">尚未設定轉社期間</div>
-                {% endif %}
-            </div>
-            {% if user.is_authenticated %}
-                {% if user.is_superuser or user.role == 'admin' %}
-                    {% if admin_pending_review_count %}
-                        <div class="alert alert-warning mb-4">您有 {{ admin_pending_review_count }} 封待審核申請</div>
-                    {% endif %}
-                {% endif %}
-            {% endif %}
-            <div class="d-flex flex-wrap gap-2">
-                {% if user.is_authenticated and user.role == 'student' %}
-                    {% if transfer_window_is_open %}
-                        <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-lg">申請轉社</a>
-                    {% endif %}
-                    <a href="{% url 'my_requests' %}" class="btn btn-outline-primary btn-lg">查看我的申請</a>
-                {% endif %}
-            </div>
+<div class="dashboard dashboard--{{ dashboard_role }}">
+{% if dashboard_role == 'student' %}
+    <header class="dashboard-header">
+        <div><div class="dashboard-eyebrow">學生工作區</div><h1>歡迎回來，{{ user.first_name|default:user.username }}</h1><p class="dashboard-subtitle">查看目前社團、轉社申請狀態，以及現在可以採取的下一步。</p></div>
+        <div class="dashboard-primary-actions">
+            {% if student_request.status == 'returned' %}<a href="{% url 'reselect_club' student_request.pk %}" class="btn btn-primary">重新選擇目標社團</a>
+            {% elif student_request.status == 'rejected' and transfer_window_is_open and user.club_id %}<a href="{% url 'transfer_apply' %}" class="btn btn-primary">重新提出轉社申請</a>
+            {% elif student_request %}<a href="{% url 'request_detail' student_request.pk %}" class="btn btn-primary">查看申請狀態</a>
+            {% elif transfer_window_is_open and user.club_id %}<a href="{% url 'transfer_apply' %}" class="btn btn-primary">提出轉社申請</a>
+            {% else %}<a href="{% url 'club_list' %}" class="btn btn-outline-primary">查看社團資訊</a>{% endif %}
         </div>
-        <div class="col-lg-5">
-            <div class="row g-3">
-                <div class="col-4">
-                    <div class="border rounded p-3 text-center h-100">
-                        <div class="h2 mb-1">{{ club_count }}</div>
-                        <div class="text-muted small">社團總數</div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="border rounded p-3 text-center h-100">
-                        <div class="h2 mb-1">{{ student_count }}</div>
-                        <div class="text-muted small">學生人數</div>
-                    </div>
-                </div>
-                {% if user|can_review_transfers %}
-                    <div class="col-4">
-                        <div class="border rounded p-3 text-center h-100">
-                            <div class="h2 mb-1">{{ pending_count }}</div>
-                            <div class="text-muted small">待審核申請</div>
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</section>
+    </header>
 
-<section class="mb-4">
-    <div class="row row-cols-1 row-cols-md-3 g-3">
-        {% if user.is_authenticated and user.role == 'student' %}
-            {% if transfer_window_is_open %}
-                <div class="col">
-                    <a href="{% url 'transfer_apply' %}" class="card h-100 text-decoration-none text-body">
-                        <div class="card-body">
-                            <h2 class="h5 card-title">申請轉社</h2>
-                            <p class="card-text text-muted mb-0">填寫轉社原因並選擇目標社團，送出後進入審核流程。</p>
-                        </div>
-                    </a>
-                </div>
-            {% endif %}
-            <div class="col">
-                <a href="{% url 'my_requests' %}" class="card h-100 text-decoration-none text-body">
-                    <div class="card-body">
-                        <h2 class="h5 card-title">查看我的申請</h2>
-                        <p class="card-text text-muted mb-0">追蹤申請狀態、查看審核紀錄與目前處理階段。</p>
-                    </div>
-                </a>
-            </div>
-        {% endif %}
-    </div>
-</section>
+    {% if student_request.status == 'returned' %}
+    <section class="dashboard-attention dashboard-attention--warning"><div><h2>需要重新選擇目標社團</h2><p>原社團的轉出審核結果已保留，請選擇另一個有名額的社團。</p></div><a href="{% url 'reselect_club' student_request.pk %}" class="btn btn-warning">選擇其他社團</a></section>
+    {% elif student_request.status == 'orig_president_pending' or student_request.status == 'orig_teacher_pending' or student_request.status == 'new_president_pending' or student_request.status == 'new_teacher_pending' or student_request.status == 'admin_pending' %}
+    <section class="dashboard-attention"><div><h2>申請正在審核</h2><p>目前進度：{{ student_request.get_status_display }}。完成最終核准前，您的所屬社團不會變更。</p></div><a href="{% url 'request_detail' student_request.pk %}" class="btn btn-primary">查看完整進度</a></section>
+    {% elif not user.club_id %}
+    <section class="dashboard-attention dashboard-attention--warning"><div><h2>目前尚未分配社團</h2><p>沒有目前社團時無法提出轉社申請，請聯絡訓育組完成社團分配。</p></div></section>
+    {% elif not transfer_window_is_open and not student_request %}
+    <section class="dashboard-attention"><div><h2>目前不能提出新申請</h2><p>{% if window_timing_text %}{{ window_timing_text }}。{% else %}尚未設定轉社申請期間。{% endif %}</p></div><a href="{% url 'club_list' %}" class="btn btn-outline-primary">先查看社團</a></section>
+    {% endif %}
 
-<section class="bg-light rounded p-4">
-    <h2 class="h4 mb-3">轉社審核流程</h2>
-    <div class="d-flex flex-column flex-lg-row gap-2 align-items-lg-center text-center">
-        <div class="flex-fill border rounded bg-white p-3">學生申請</div>
-        <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">原社社長審核</div>
-        <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">原社指導老師審核</div>
-        <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">新社社長審核</div>
-        <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">新社指導老師審核</div>
-        <div class="text-muted">→</div>
-        <div class="flex-fill border rounded bg-white p-3">訓育組核定</div>
+    <div class="dashboard-grid">
+        <section class="dashboard-panel" aria-labelledby="student-club-heading">
+            <div class="dashboard-panel-header"><div><h2 id="student-club-heading">目前社團</h2><p>您的現行社團身分</p></div><svg class="dashboard-section-icon" aria-hidden="true"><use href="#icon-building"></use></svg></div>
+            {% if user.club %}<div class="dashboard-panel-body"><div class="dashboard-metric-value">{{ user.club.name }}</div><p class="text-muted small mt-2">{% if user.role == 'president' %}社長{% else %}社員{% endif %}</p><a href="{% url 'club_detail' user.club.pk %}" class="btn btn-outline-primary btn-sm mt-3">查看社團資訊</a></div>{% else %}<div class="dashboard-empty"><strong>尚未分配社團</strong><p>請聯絡訓育組協助完成分配。</p></div>{% endif %}
+        </section>
+        <section class="dashboard-panel" aria-labelledby="student-window-heading">
+            <div class="dashboard-panel-header"><div><h2 id="student-window-heading">轉社申請期間</h2><p>新申請的開放狀態</p></div><svg class="dashboard-section-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg></div>
+            <div class="dashboard-panel-body">{% if transfer_window %}<span class="badge {% if transfer_window_status == 'open' %}bg-success{% elif transfer_window_status == 'paused' %}bg-warning{% else %}bg-secondary{% endif %}">{{ transfer_window.status_text }}</span><p class="mt-3 mb-1"><strong>{{ transfer_window.start_date|date:"Y/m/d" }}－{{ transfer_window.end_date|date:"Y/m/d" }}</strong></p><p class="text-muted small">{{ window_timing_text }}</p>{% else %}<div class="dashboard-empty p-0"><strong>尚未設定申請期間</strong><p>目前無法建立新申請。</p></div>{% endif %}</div>
+        </section>
     </div>
-</section>
+
+    <section class="dashboard-panel" aria-labelledby="student-request-heading">
+        <div class="dashboard-panel-header"><div><h2 id="student-request-heading">最近一筆轉社申請</h2><p>申請狀態與審核進度</p></div>{% if student_request %}<span class="badge {% if student_request.status == 'approved' %}bg-success{% elif student_request.status == 'rejected' %}bg-danger{% elif student_request.status == 'returned' %}bg-warning{% else %}bg-primary{% endif %}">{{ student_request.get_status_display }}</span>{% endif %}</div>
+        {% if student_request %}<div class="dashboard-panel-body"><div class="workflow-context mb-4"><dl><dt>轉社路徑</dt><dd>{{ student_request.original_club.name }} → {{ student_request.target_club.name }}</dd><dt>申請時間</dt><dd>{{ student_request.created_at|date:"Y/m/d H:i" }}</dd><dt>下一步</dt><dd>{% if student_request.status == 'returned' %}請重新選擇目標社團{% elif student_request.status == 'approved' %}申請已完成，請依學校安排至新社團報到{% elif student_request.status == 'rejected' %}本次申請已結束{% else %}等待目前階段審核{% endif %}</dd></dl></div>
+        {% if student_request.status != 'rejected' and student_request.status != 'returned' %}<div class="dashboard-progress" aria-label="五階段審核進度"><div class="dashboard-progress-step {% if student_request.status != 'orig_president_pending' %}completed{% else %}active{% endif %}">原社長</div><div class="dashboard-progress-step {% if student_request.status == 'orig_teacher_pending' %}active{% elif student_request.status == 'new_president_pending' or student_request.status == 'new_teacher_pending' or student_request.status == 'admin_pending' or student_request.status == 'approved' %}completed{% endif %}">原老師</div><div class="dashboard-progress-step {% if student_request.status == 'new_president_pending' %}active{% elif student_request.status == 'new_teacher_pending' or student_request.status == 'admin_pending' or student_request.status == 'approved' %}completed{% endif %}">新社長</div><div class="dashboard-progress-step {% if student_request.status == 'new_teacher_pending' %}active{% elif student_request.status == 'admin_pending' or student_request.status == 'approved' %}completed{% endif %}">新老師</div><div class="dashboard-progress-step {% if student_request.status == 'admin_pending' %}active{% elif student_request.status == 'approved' %}completed{% endif %}">訓育組</div></div>{% endif %}
+        </div>{% else %}<div class="dashboard-empty"><strong>尚未提出轉社申請</strong><p>{% if transfer_window_is_open and user.club_id %}目前可在申請期間內提出申請。{% else %}申請開放後，狀態會顯示在這裡。{% endif %}</p>{% if transfer_window_is_open and user.club_id %}<a href="{% url 'transfer_apply' %}" class="btn btn-primary mt-3">提出轉社申請</a>{% endif %}</div>{% endif %}
+    </section>
+
+{% elif dashboard_role == 'president' %}
+    <header class="dashboard-header"><div><div class="dashboard-eyebrow">社長工作區</div><h1>{{ user.first_name|default:user.username }}，這是您的社團概況</h1><p class="dashboard-subtitle">優先處理需要您決定的轉社申請，並掌握社員與容量狀態。</p></div><div class="dashboard-primary-actions"><a href="{% url 'pending_approvals' %}" class="btn btn-primary">審核待處理申請</a></div></header>
+    {% if dashboard_pending_count %}<section class="dashboard-attention dashboard-attention--warning"><div><h2>{{ dashboard_pending_count }} 筆申請需要您的審核</h2><p>請確認學生、轉出與轉入社團後再做決定。</p></div><a href="{% url 'pending_approvals' %}" class="btn btn-warning">開始審核</a></section>{% else %}<section class="dashboard-attention"><div><h2>目前沒有待審核申請</h2><p>需要您處理的新申請會優先顯示在這裡。</p></div></section>{% endif %}
+    {% if managed_club %}<div class="dashboard-metrics"><div class="dashboard-metric"><span class="dashboard-metric-value">{{ managed_club.actual_members }}</span><span class="dashboard-metric-label">目前社員</span></div><div class="dashboard-metric"><span class="dashboard-metric-value">{{ managed_club.remaining_slots }}</span><span class="dashboard-metric-label">剩餘名額</span></div><div class="dashboard-metric"><span class="dashboard-metric-value">{{ dashboard_pending_count }}</span><span class="dashboard-metric-label">待您審核</span></div><div class="dashboard-metric"><span class="dashboard-metric-value">{{ managed_club.max_members }}</span><span class="dashboard-metric-label">人數上限</span></div></div>{% endif %}
+    <div class="dashboard-grid"><section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>負責社團</h2><p>社員與容量概況</p></div></div>{% if managed_club %}<div class="dashboard-panel-body"><h3 class="h4">{{ managed_club.name }}</h3><p class="text-muted small">指導老師：{{ managed_club.teacher|default:"尚未設定" }}</p><div class="dashboard-capacity"><div class="dashboard-capacity-meta"><span>{{ managed_club.actual_members }} / {{ managed_club.max_members }} 人</span><span>{% if managed_club.remaining_slots %}剩餘 {{ managed_club.remaining_slots }} 名{% else %}已額滿{% endif %}</span></div><div class="progress" role="progressbar" aria-label="{{ managed_club.name }} 容量" aria-valuenow="{{ managed_club.actual_members }}" aria-valuemin="0" aria-valuemax="{{ managed_club.max_members }}"><div class="progress-bar {% if managed_club.capacity_percent >= 100 %}bg-danger{% elif managed_club.capacity_percent >= 80 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ managed_club.capacity_percent }}%"></div></div></div><a href="{% url 'club_detail' managed_club.pk %}" class="btn btn-outline-primary btn-sm mt-4">查看社員與社團資訊</a></div>{% else %}<div class="dashboard-empty"><strong>找不到有效的社團責任</strong><p>您的社長身分目前沒有對應啟用中的社團，請聯絡訓育組確認。</p></div>{% endif %}</section>
+    <section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>等待您處理</h2><p>最多顯示最近四筆</p></div></div>{% if dashboard_pending_preview %}<div class="dashboard-panel-body"><ul class="dashboard-list">{% for req in dashboard_pending_preview %}<li class="dashboard-list-item"><div class="dashboard-list-item-main"><strong>{{ req.student.get_full_name|default:req.student.username }}</strong><small>{{ req.original_club.name }} → {{ req.target_club.name }}</small></div><span class="badge bg-primary">{{ req.get_status_display }}</span></li>{% endfor %}</ul><a href="{% url 'pending_approvals' %}" class="btn btn-outline-primary btn-sm mt-4">查看全部待審核申請</a></div>{% else %}<div class="dashboard-empty"><strong>全部處理完成</strong><p>目前沒有需要您審核的申請。</p></div>{% endif %}</section></div>
+
+{% elif dashboard_role == 'teacher' %}
+    <header class="dashboard-header"><div><div class="dashboard-eyebrow">指導老師工作區</div><h1>{{ user.first_name|default:user.username }}，查看您的社團與審核工作</h1><p class="dashboard-subtitle">集中掌握負責社團的容量，以及目前等待您處理的轉社申請。</p></div><div class="dashboard-primary-actions"><a href="{% url 'pending_approvals' %}" class="btn btn-primary">審核轉社申請</a></div></header>
+    {% if dashboard_pending_count %}<section class="dashboard-attention dashboard-attention--warning"><div><h2>{{ dashboard_pending_count }} 筆申請等待您的審核</h2><p>申請只包含您在目前階段有權處理的社團資料。</p></div><a href="{% url 'pending_approvals' %}" class="btn btn-warning">開始審核</a></section>{% else %}<section class="dashboard-attention"><div><h2>目前沒有待審核申請</h2><p>您已完成目前所有審核工作。</p></div></section>{% endif %}
+    <div class="dashboard-metrics"><div class="dashboard-metric"><span class="dashboard-metric-value">{{ teacher_clubs|length }}</span><span class="dashboard-metric-label">負責社團</span></div><div class="dashboard-metric"><span class="dashboard-metric-value">{{ dashboard_pending_count }}</span><span class="dashboard-metric-label">待您審核</span></div>{% if transfer_window %}<div class="dashboard-metric"><span class="dashboard-metric-value">{% if transfer_window_status == 'open' %}開放{% elif transfer_window_status == 'paused' %}暫停{% else %}關閉{% endif %}</span><span class="dashboard-metric-label">轉社申請</span><span class="dashboard-metric-note">{{ window_timing_text }}</span></div>{% endif %}</div>
+    <div class="dashboard-grid"><section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>負責社團</h2><p>目前社員與容量</p></div></div>{% if teacher_clubs %}<div class="dashboard-panel-body"><ul class="dashboard-list">{% for club in teacher_clubs %}<li class="dashboard-list-item"><div class="dashboard-list-item-main"><strong>{{ club.name }}</strong><small>{{ club.actual_members }} / {{ club.max_members }} 人</small></div><a href="{% url 'club_detail' club.pk %}" class="btn btn-outline-primary btn-sm">查看社團</a></li>{% endfor %}</ul></div>{% else %}<div class="dashboard-empty"><strong>尚未指派負責社團</strong><p>社團指導關係設定後會顯示在這裡。</p></div>{% endif %}</section><section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>等待您處理</h2><p>目前階段的申請</p></div></div>{% if dashboard_pending_preview %}<div class="dashboard-panel-body"><ul class="dashboard-list">{% for req in dashboard_pending_preview %}<li class="dashboard-list-item"><div class="dashboard-list-item-main"><strong>{{ req.student.get_full_name|default:req.student.username }}</strong><small>{{ req.original_club.name }} → {{ req.target_club.name }}</small></div><span class="badge bg-primary">{{ req.get_status_display }}</span></li>{% endfor %}</ul><a href="{% url 'pending_approvals' %}" class="btn btn-outline-primary btn-sm mt-4">查看全部待審核申請</a></div>{% else %}<div class="dashboard-empty"><strong>沒有待審核申請</strong><p>新的審核工作會顯示在這裡。</p></div>{% endif %}</section></div>
+
+{% elif dashboard_role == 'admin' %}
+    <header class="dashboard-header"><div><div class="dashboard-eyebrow">訓育組工作區</div><h1>歡迎來到社團轉社系統</h1></div><div class="dashboard-primary-actions"><a href="{% url 'pending_approvals' %}" class="btn btn-primary">審核待核定申請</a></div></header>
+    {% if dashboard_pending_count or unassigned_student_count %}<section class="dashboard-attention dashboard-attention--warning"><div><h2>有工作需要處理</h2><p>{% if dashboard_pending_count %}{{ dashboard_pending_count }} 筆申請等待訓育組最終核定。{% endif %}{% if unassigned_student_count %} {{ unassigned_student_count }} 位學生尚未分配社團。{% endif %}</p></div><div class="dashboard-quick-actions">{% if dashboard_pending_count %}<a href="{% url 'pending_approvals' %}" class="btn btn-warning">處理最終核定</a>{% endif %}{% if unassigned_student_count %}<a href="{% url 'unassigned_account_list' %}" class="btn btn-outline-primary">分配學生</a>{% endif %}</div></section>{% else %}<section class="dashboard-attention"><div><h2>目前沒有待處理項目</h2><p>所有最終核定已完成，啟用中的學生也都已有社團。</p></div></section>{% endif %}
+    <div class="dashboard-metrics"><div class="dashboard-metric"><span class="dashboard-metric-value">{{ dashboard_pending_count }}</span><span class="dashboard-metric-label">待最終核定</span></div><div class="dashboard-metric"><span class="dashboard-metric-value">{{ unassigned_student_count }}</span><span class="dashboard-metric-label">未分配學生</span></div><div class="dashboard-metric"><span class="dashboard-metric-value">{{ active_club_count }}</span><span class="dashboard-metric-label">啟用中社團</span></div><div class="dashboard-metric"><span class="dashboard-metric-value">{{ active_student_count }}</span><span class="dashboard-metric-label">啟用中學生</span><span class="dashboard-metric-note">含社長</span></div></div>
+    <div class="dashboard-quick-actions" aria-label="常用管理操作"><a href="{% url 'account_admin_create' %}" class="btn btn-primary">新增帳號</a><a href="{% url 'account_admin_import' %}" class="btn btn-outline-primary">匯入帳號</a><a href="{% url 'club_admin_create' %}" class="btn btn-outline-primary">建立社團</a><a href="{% url 'transfer_window_settings' %}" class="btn btn-outline-secondary">管理申請期間</a></div>
+    <div class="dashboard-grid"><section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>轉社申請期間</h2><p>目前系統接受新申請的狀態</p></div><svg class="dashboard-section-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg></div><div class="dashboard-panel-body">{% if transfer_window %}<div class="workflow-context"><dl><dt>狀態</dt><dd><span class="badge {% if transfer_window_status == 'open' %}bg-success{% elif transfer_window_status == 'paused' %}bg-warning{% else %}bg-secondary{% endif %}">{{ transfer_window.status_text }}</span></dd><dt>開放日期</dt><dd>{{ transfer_window.start_date|date:"Y/m/d" }}</dd><dt>截止日期</dt><dd>{{ transfer_window.end_date|date:"Y/m/d" }}</dd><dt>時間提示</dt><dd>{{ window_timing_text }}</dd></dl></div>{% else %}<div class="dashboard-empty p-0"><strong>尚未設定申請期間</strong><p>學生目前無法提出新申請。</p></div>{% endif %}<a href="{% url 'transfer_window_settings' %}" class="btn btn-outline-primary btn-sm mt-4">管理轉社申請期間</a></div></section>
+    <section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>社團容量提醒</h2><p>已額滿或使用率達 80% 的社團</p></div><span class="badge {% if full_club_count %}bg-danger{% else %}bg-secondary{% endif %}">{{ full_club_count }} 個額滿</span></div>{% if capacity_attention %}<div class="dashboard-panel-body"><ul class="dashboard-list">{% for club in capacity_attention %}<li class="dashboard-list-item"><div class="dashboard-list-item-main"><strong>{{ club.name }}</strong><small>{{ club.actual_members }} / {{ club.max_members }} 人 · {% if club.remaining_slots %}剩餘 {{ club.remaining_slots }} 名{% else %}已額滿{% endif %}</small></div><span class="badge {% if club.capacity_percent >= 100 %}bg-danger{% else %}bg-warning{% endif %}">{{ club.capacity_percent }}%</span></li>{% endfor %}</ul><a href="{% url 'club_admin_list' %}" class="btn btn-outline-primary btn-sm mt-4">管理社團</a></div>{% else %}<div class="dashboard-empty"><strong>容量狀態正常</strong><p>目前沒有社團達到 80% 容量。</p></div>{% endif %}</section></div>
+    <div class="dashboard-grid"><section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>等待最終核定</h2><p>最多顯示最近四筆</p></div></div>{% if dashboard_pending_preview %}<div class="dashboard-panel-body"><ul class="dashboard-list">{% for req in dashboard_pending_preview %}<li class="dashboard-list-item"><div class="dashboard-list-item-main"><strong>{{ req.student.get_full_name|default:req.student.username }}</strong><small>{{ req.original_club.name }} → {{ req.target_club.name }}</small></div><a href="{% url 'request_detail' req.pk %}" class="btn btn-outline-primary btn-sm">查看申請</a></li>{% endfor %}</ul></div>{% else %}<div class="dashboard-empty"><strong>沒有待核定申請</strong><p>前階段完成的申請會顯示在這裡。</p></div>{% endif %}</section><section class="dashboard-panel"><div class="dashboard-panel-header"><div><h2>最近轉社活動</h2><p>最近五筆可靠的申請紀錄</p></div></div>{% if recent_requests %}<div class="dashboard-panel-body"><ul class="dashboard-list">{% for req in recent_requests %}<li class="dashboard-list-item"><div class="dashboard-list-item-main"><strong>{{ req.student.get_full_name|default:req.student.username }}</strong><small>{{ req.original_club.name }} → {{ req.target_club.name }}</small></div><span class="badge {% if req.status == 'approved' %}bg-success{% elif req.status == 'rejected' %}bg-danger{% elif req.status == 'returned' %}bg-warning{% else %}bg-primary{% endif %}">{{ req.get_status_display }}</span></li>{% endfor %}</ul><a href="{% url 'all_requests' %}" class="btn btn-outline-primary btn-sm mt-4">查看所有申請</a></div>{% else %}<div class="dashboard-empty"><strong>尚無轉社活動</strong><p>學生送出申請後會顯示在這裡。</p></div>{% endif %}</section></div>
+
+{% else %}
+    <header class="dashboard-header"><div><div class="dashboard-eyebrow">社團轉社系統</div><h1>清楚掌握社團與轉社申請</h1><p class="dashboard-subtitle">登入後即可依您的身分查看社團責任、申請進度或待審核工作。</p></div>{% if not user.is_authenticated %}<div class="dashboard-primary-actions"><a href="{% url 'login' %}" class="btn btn-primary">登入系統</a></div>{% endif %}</header>
+    <div class="dashboard-metrics"><div class="dashboard-metric"><span class="dashboard-metric-value">{{ club_count }}</span><span class="dashboard-metric-label">啟用中社團</span></div></div>
+    <div class="dashboard-quick-actions"><a href="{% url 'club_list' %}" class="btn btn-outline-primary">查看社團列表</a></div>
+{% endif %}
+</div>
 {% endblock %}

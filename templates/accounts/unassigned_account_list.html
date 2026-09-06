@@ -35,13 +35,13 @@
     <span class="bulk-selection-count"><strong data-selected-count>0</strong> 個已選取</span>
     <div class="row g-2 align-items-center">
         <div class="col-auto">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-unassigned" data-select-all>全選</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-unassigned" data-select-all{% if not accounts %} disabled{% endif %}>全選</button>
         </div>
         <div class="col-auto">
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-unassigned" data-clear-selection>取消全選</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-unassigned" data-clear-selection{% if not accounts %} disabled{% endif %}>取消全選</button>
         </div>
         <div class="col-sm-6 col-md-4">
-            <select name="club_id" class="form-select form-select-sm" form="unassigned-bulk-form">
+            <select name="club_id" class="form-select form-select-sm" form="unassigned-bulk-form"{% if not accounts or not active_clubs %} disabled{% endif %}>
                 <option value="">選擇社團</option>
                 {% for club in active_clubs %}
                     <option value="{{ club.pk }}">{{ club.name }}（{{ club.current_members }}/{{ club.max_members }} 人）</option>
@@ -49,10 +49,10 @@
             </select>
         </div>
         <div class="col-auto">
-            <button type="submit" class="btn btn-primary btn-sm" form="unassigned-bulk-form" data-submitting-label="正在分配…" {% if not active_clubs %}disabled{% endif %}>分配已選學生</button>
+            <button type="submit" class="btn btn-primary btn-sm" form="unassigned-bulk-form" data-submitting-label="正在分配…"{% if not accounts or not active_clubs %} disabled{% endif %}>分配已選學生</button>
         </div>
     </div>
-</div>
+</div>{% if not accounts %}<p class="state-hint" role="status">目前沒有學生可供選取，批次分配功能暫不可用。</p>{% elif not active_clubs %}<p class="state-hint" role="status">目前沒有可接受學生的啟用中社團，因此分配功能暫不可用。</p>{% endif %}
 
 <div class="table-responsive data-table-container">
     <table class="table data-table data-table--cards data-table--sticky-header align-middle">
@@ -109,7 +109,7 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="8" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-user-check"></use></svg><strong>沒有未分配帳號</strong><p>{% if q %}請嘗試其他搜尋關鍵字。{% else %}目前所有啟用中的學生都已完成社團分配。{% endif %}</p></div></td>
+                    <td colspan="8" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-user-check"></use></svg>{% if q %}<strong>沒有未分配帳號符合目前搜尋</strong><p>未分配資料仍保留；請嘗試其他搜尋字詞。</p><a href="{% url 'unassigned_account_list' %}" class="btn btn-outline-primary btn-sm">清除搜尋</a>{% else %}<strong>沒有未分配學生</strong><p>目前所有啟用中的學生都已完成社團分配。</p>{% endif %}</div></td>
                 </tr>
             {% endfor %}
         </tbody>

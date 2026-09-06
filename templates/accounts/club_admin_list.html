@@ -38,14 +38,14 @@
     {% csrf_token %}
 </form>
 
-<div class="bulk-action-bar" data-selection-checkbox=".club-checkbox" data-selection-master="#toggle-all-clubs">
+{% if clubs %}<div class="bulk-action-bar" data-selection-checkbox=".club-checkbox" data-selection-master="#toggle-all-clubs">
     <span class="bulk-selection-count"><strong data-selected-count>0</strong> 個已選取</span>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-clubs" data-select-all>全選</button>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-clubs" data-clear-selection>取消全選</button>
     <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_delete' %}" data-confirm-message="安全刪除已選取的 {count} 個社團？系統會解除成員分配；有轉社歷史的社團只會停用。" data-submitting-label="正在處理…">批次安全刪除</button>
     <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_deactivate' %}" data-confirm-message="停用已選取的 {count} 個社團？系統會解除成員分配並清空指導老師與社長。" data-submitting-label="正在停用…">批次停用</button>
     <button type="submit" class="btn btn-outline-success btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_reactivate' %}" data-confirm-message="重新啟用已選取的 {count} 個社團？請確認之後仍會補齊有效的指導老師與社長。" data-submitting-label="正在啟用…">批次重新啟用</button>
-</div>
+</div>{% endif %}
 
 <div class="table-responsive data-table-container">
     <table class="table data-table data-table--cards data-table--sticky-header align-middle">
@@ -87,7 +87,7 @@
                             {% if club.is_active %}
                                 <form method="post" action="{% url 'club_admin_deactivate' club.pk %}" class="d-inline" data-workflow-form data-confirm-message="停用 {{ club.name }}？系統會解除成員分配，並清空指導老師與社長；轉社歷史會保留。">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">停用</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-submitting-label="正在停用…">停用</button>
                                 </form>
                             {% else %}
                                 <form method="post" action="{% url 'club_admin_reactivate' club.pk %}" class="d-inline" data-workflow-form>
@@ -104,8 +104,7 @@
                     <td colspan="8" class="data-empty-cell">
                         <div class="data-empty">
                             <svg class="data-empty-icon" aria-hidden="true"><use href="#icon-building"></use></svg>
-                            <strong>沒有符合條件的社團</strong>
-                            <p>請調整搜尋關鍵字，或建立新的社團資料。</p>
+                            {% if q %}<strong>找不到符合搜尋條件的社團</strong><p>社團資料仍保留；請嘗試其他搜尋字詞。</p><a href="{% url 'club_admin_list' %}" class="btn btn-outline-primary btn-sm">清除搜尋</a>{% else %}<strong>目前沒有社團資料</strong><p>建立或匯入社團後，資料會顯示在這裡。</p><a href="{% url 'club_admin_create' %}" class="btn btn-primary btn-sm">新增社團</a>{% endif %}
                         </div>
                     </td>
                 </tr>

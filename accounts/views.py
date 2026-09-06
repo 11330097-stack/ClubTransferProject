@@ -184,42 +184,152 @@ class AccountAdminReturnMixin:
 class HomeView(TemplateView):
     template_name = 'accounts/home.html'
 
+    @staticmethod
+    def clubs_with_members(queryset):
+        return queryset.annotate(
+            actual_members=Count(
+                'members',
+                filter=Q(
+                    members__role__in=['student', 'president'],
+                    members__is_active=True,
+                ),
+            ),
+        )
+
+    def pending_for_user(self, user):
+        queryset = TransferRequest.objects.select_related(
+            'student', 'original_club', 'target_club',
+        )
+        if user.is_superuser or user.role == 'admin':
+            return queryset.filter(status='admin_pending')
+        username_marker = f'({user.username})'
+        if user.role == 'president' and user.club_id:
+            return queryset.filter(
+                Q(
+                    status='orig_president_pending',
+                    original_club_id=user.club_id,
+                    original_club__president__icontains=username_marker,
+                )
+                | Q(
+                    status='new_president_pending',
+                    target_club_id=user.club_id,
+                    target_club__president__icontains=username_marker,
+                ),
+            ).distinct()
+        if user.role == 'teacher':
+            return queryset.filter(
+                Q(
+                    status='orig_teacher_pending',
+                    original_club__teacher__icontains=username_marker,
+                )
+                | Q(
+                    status='new_teacher_pending',
+                    target_club__teacher__icontains=username_marker,
+                ),
+            ).distinct()
+        return queryset.none()
+
+    def add_window_context(self, context):
+        state = get_transfer_window_state()
+        context.update(state)
+        transfer_window = state['transfer_window']
+        context['window_timing_text'] = ''
+        context['window_days_remaining'] = None
+        if not transfer_window:
+            return
+        today = timezone.localdate()
+        status = state['transfer_window_status']
+        if status == 'open':
+            days = (transfer_window.end_date - today).days
+            context['window_days_remaining'] = days
+            context['window_timing_text'] = f'距離截止還有 {days} 天' if days else '今天截止'
+        elif status == 'not_started':
+            days = (transfer_window.start_date - today).days
+            context['window_timing_text'] = f'{days} 天後開放' if days else '今天開放'
+        elif status == 'paused':
+            context['window_timing_text'] = '目前暫停接受新申請'
+        else:
+            context['window_timing_text'] = '本次申請期間已結束'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        UserModel = get_user_model()
-        pending_statuses = [
-            'orig_president_pending',
-            'orig_teacher_pending',
-            'new_president_pending',
-            'new_teacher_pending',
-            'admin_pending',
-        ]
+        self.add_window_context(context)
+        user = self.request.user
+        context['dashboard_role'] = 'public'
 
-        context.update({
-            'club_count': Club.objects.filter(is_active=True).count(),
-            'student_count': UserModel.objects.filter(
-                role='student',
-                is_superuser=False,
-                is_active=True,
-            ).exclude(role='admin').count(),
-            'president_count': UserModel.objects.filter(
-                role='president',
-                is_superuser=False,
-                is_active=True,
-            ).exclude(role='admin').count(),
-            'teacher_count': UserModel.objects.filter(
-                role='teacher',
-                is_superuser=False,
-                is_active=True,
-            ).exclude(role='admin').count(),
-            'inactive_account_count': UserModel.objects.filter(
-                is_active=False,
-                is_superuser=False,
-            ).exclude(role='admin').count(),
-            'pending_count': TransferRequest.objects.filter(status__in=pending_statuses).count(),
-            'can_review_transfers': can_review_transfer_requests(self.request.user),
-        })
-        context.update(get_transfer_window_state())
+        if not user.is_authenticated:
+            context['club_count'] = Club.objects.filter(is_active=True).count()
+            return context
+
+        if user.is_superuser or user.role == 'admin':
+            context['dashboard_role'] = 'admin'
+            active_clubs = self.clubs_with_members(Club.objects.filter(is_active=True))
+            capacity_attention = []
+            full_club_count = 0
+            for club in active_clubs.order_by('-actual_members', 'name'):
+                club.remaining_slots = max(club.max_members - club.actual_members, 0)
+                club.capacity_percent = round((club.actual_members / club.max_members) * 100) if club.max_members else 100
+                if club.actual_members >= club.max_members:
+                    full_club_count += 1
+                if club.capacity_percent >= 80:
+                    capacity_attention.append(club)
+            admin_pending = self.pending_for_user(user)
+            context.update({
+                'active_club_count': len(active_clubs),
+                'active_student_count': User.objects.filter(
+                    role__in=['student', 'president'], is_active=True,
+                ).count(),
+                'unassigned_student_count': User.objects.filter(
+                    role='student', is_active=True, club__isnull=True,
+                ).count(),
+                'dashboard_pending_count': admin_pending.count(),
+                'dashboard_pending_preview': list(admin_pending[:4]),
+                'full_club_count': full_club_count,
+                'capacity_attention': capacity_attention[:4],
+                'recent_requests': list(
+                    TransferRequest.objects.select_related(
+                        'student', 'original_club', 'target_club',
+                    ).order_by('-created_at')[:5]
+                ),
+            })
+            return context
+
+        if user.role == 'student':
+            context['dashboard_role'] = 'student'
+            context['student_request'] = TransferRequest.objects.filter(
+                student=user,
+            ).select_related('original_club', 'target_club').first()
+            return context
+
+        pending = self.pending_for_user(user)
+        context['dashboard_pending_count'] = pending.count()
+        context['dashboard_pending_preview'] = list(pending[:4])
+
+        if user.role == 'president':
+            context['dashboard_role'] = 'president'
+            club = None
+            if user.club_id:
+                club = self.clubs_with_members(
+                    Club.objects.filter(pk=user.club_id, is_active=True),
+                ).first()
+            if club:
+                club.remaining_slots = max(club.max_members - club.actual_members, 0)
+                club.capacity_percent = round((club.actual_members / club.max_members) * 100) if club.max_members else 100
+            context['managed_club'] = club
+            return context
+
+        if user.role == 'teacher':
+            context['dashboard_role'] = 'teacher'
+            marker = f'({user.username})'
+            teacher_clubs = self.clubs_with_members(
+                Club.objects.filter(
+                    Q(teacher__icontains=marker) | Q(teacher__iexact=user.username),
+                    is_active=True,
+                ).order_by('name'),
+            )
+            context['teacher_clubs'] = list(teacher_clubs)
+            return context
+
         return context
 
 
@@ -588,7 +698,8 @@ class AccountAdminBulkDeactivateView(
                 updated_count += 1
             recalculate_club_current_members()
 
-        messages.success(
+        message_level = messages.warning if protected_president_count or active_transfer_count else messages.success
+        message_level(
             request,
             f'已批次停用 {updated_count} 個帳號；'
             f'{protected_president_count} 位啟用中社團的社長須先完成交接；'
@@ -647,7 +758,8 @@ class AccountAdminBulkDeleteView(
 
             recalculate_club_current_members()
 
-        messages.success(
+        message_level = messages.warning if protected_president_count or active_transfer_count else messages.success
+        message_level(
             request,
             f'批次刪除完成：刪除 {deleted_count} 個帳號，'
             f'因有歷史紀錄而停用 {deactivated_count} 個帳號；'
@@ -1130,7 +1242,8 @@ class ClubAdminBulkReactivateView(
                     skipped_count += 1
             recalculate_club_current_members()
 
-        messages.success(
+        message_level = messages.warning if skipped_count else messages.success
+        message_level(
             request,
             f'已批次重新啟用 {reactivated_count} 個社團；'
             f'{skipped_count} 個社團因缺少有效社長或指導老師而略過。',
@@ -1628,7 +1741,10 @@ class StudentAdminBulkDeactivateView(
     View,
 ):
     def post(self, request):
-        students = self.get_selected_students(request)
+        students = list(self.get_selected_students(request))
+        if not students:
+            messages.warning(request, '請先選取要停用的學生。')
+            return redirect('student_admin_list')
         with transaction.atomic():
             updated_count = 0
             protected_president_count = 0
@@ -1643,7 +1759,8 @@ class StudentAdminBulkDeactivateView(
                     updated_count += 1
             recalculate_club_current_members()
 
-        messages.success(
+        message_level = messages.warning if protected_president_count or active_transfer_count else messages.success
+        message_level(
             request,
             f'已批次停用 {updated_count} 位學生；'
             f'{protected_president_count} 位啟用中社團的社長須先完成交接；'
@@ -1660,6 +1777,9 @@ class StudentAdminBulkReactivateView(
 ):
     def post(self, request):
         students = self.get_selected_students(request)
+        if not students.exists():
+            messages.warning(request, '請先選取要重新啟用的學生。')
+            return redirect('student_admin_list')
         with transaction.atomic():
             updated_count = students.update(is_active=True)
             recalculate_club_current_members()
@@ -1710,7 +1830,8 @@ class StudentAdminBulkDeleteView(
                     deactivated_count += 1
             recalculate_club_current_members()
 
-        messages.success(
+        message_level = messages.warning if protected_president_count or active_transfer_count else messages.success
+        message_level(
             request,
             f'批次刪除完成：刪除 {deleted_count} 位學生，'
             f'因有歷史紀錄而停用 {deactivated_count} 位學生；'
@@ -1850,22 +1971,7 @@ class StudentCsvImportView(LoginRequiredMixin, AdminRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['sample_csv'] = SAMPLE_STUDENT_IMPORT_CSV
         context['result'] = getattr(self, 'result', None)
-        context['single_form'] = kwargs.get(
-            'single_form',
-            AccountCreateForm(),
-        )
         return context
-
-    def post(self, request, *args, **kwargs):
-        if 'create_one' in request.POST:
-            single_form = AccountCreateForm(request.POST)
-            if single_form.is_valid():
-                user = single_form.save()
-                recalculate_club_current_members()
-                messages.success(request, f'已新增帳號 {user.username}。')
-                return redirect('account_admin_import')
-            return self.render_to_response(self.get_context_data(single_form=single_form))
-        return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
         self.result = import_students_from_csv(form.cleaned_data['csv_file'])

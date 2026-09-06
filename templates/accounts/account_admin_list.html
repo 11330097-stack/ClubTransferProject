@@ -81,14 +81,14 @@
     {% csrf_token %}
 </form>
 
-<div class="bulk-action-bar" data-selection-checkbox=".account-checkbox" data-selection-master="#toggle-all-accounts">
+{% if accounts %}<div class="bulk-action-bar" data-selection-checkbox=".account-checkbox" data-selection-master="#toggle-all-accounts">
     <span class="bulk-selection-count"><strong data-selected-count>0</strong> 個已選取</span>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-accounts" data-select-all>全選</button>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-accounts" data-clear-selection>取消全選</button>
-    <button type="submit" class="btn btn-outline-danger btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_delete_confirm' %}">批次刪除</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_delete_confirm' %}" data-submitting-label="正在準備…">批次刪除</button>
     <button type="submit" class="btn btn-outline-danger btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_deactivate' %}" data-confirm-message="停用已選取的 {count} 個帳號？這些使用者將無法登入，但資料會保留並可重新啟用。" data-submitting-label="正在停用…">批次停用</button>
     <button type="submit" class="btn btn-outline-success btn-sm" form="account-bulk-form" formaction="{% url 'account_admin_bulk_reactivate' %}" data-confirm-message="重新啟用已選取的 {count} 個帳號？" data-submitting-label="正在啟用…">批次重新啟用</button>
-</div>
+</div>{% endif %}
 
 <div class="table-responsive data-table-container">
     <table class="table data-table data-table--dense data-table--sticky-header align-middle">
@@ -162,7 +162,7 @@
                                 {% if account.role == 'student' and account.club %}
                                     <form method="post" action="{% url 'account_admin_promote_president' account.pk %}" class="d-inline" data-workflow-form data-confirm-message="將 {{ account.first_name|default:account.username }} 設為 {{ account.club.name }} 的社長？目前社長會改為一般學生並留在該社團。">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-outline-success">晉升為社長</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-success" data-submitting-label="正在晉升…">晉升為社長</button>
                                     </form>
                                 {% endif %}
                                 {% if account.is_active %}
@@ -184,8 +184,7 @@
                     <td colspan="10" class="data-empty-cell">
                         <div class="data-empty">
                             <svg class="data-empty-icon" aria-hidden="true"><use href="#icon-users"></use></svg>
-                            <strong>沒有符合條件的帳號</strong>
-                            <p>請調整搜尋關鍵字或身分篩選條件。</p>
+                            {% if q or selected_role %}<strong>找不到符合篩選條件的帳號</strong><p>目前的帳號資料仍保留；請調整搜尋字詞或身分條件。</p><a href="{% url 'account_admin_list' %}" class="btn btn-outline-primary btn-sm">清除篩選條件</a>{% else %}<strong>目前沒有可管理的帳號</strong><p>您可以建立單一帳號，或從 CSV 批次匯入。</p><a href="{% url 'account_admin_create' %}" class="btn btn-primary btn-sm">新增帳號</a>{% endif %}
                         </div>
                     </td>
                 </tr>

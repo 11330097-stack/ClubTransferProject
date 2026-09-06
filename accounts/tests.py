@@ -324,8 +324,8 @@ class ClubCsvImportViewTests(TestCase):
         self.assertEqual(len(result['errors']), 2)
         self.assertTrue(Club.objects.filter(code='C003').exists())
         self.assertFalse(Club.objects.filter(code='C004').exists())
-        self.assertContains(response, 'code is required.')
-        self.assertContains(response, 'max_members must be a positive integer.')
+        self.assertContains(response, 'code 為必填欄位。')
+        self.assertContains(response, 'max_members 必須是大於 0 的整數。')
 
 
 class TeacherAdminManagementTests(TestCase):
@@ -901,8 +901,10 @@ class AccountAdminListViewTests(TestCase):
         self.assertTrue(teacher.check_password('Valid-Teacher-101!'))
         self.assertFalse(User.objects.filter(username='bad-role').exists())
         self.assertFalse(User.objects.filter(username='bad-club').exists())
-        self.assertContains(response, 'role must be student or teacher')
-        self.assertContains(response, 'Active Club.name=CSV Inactive Club not found.')
+        self.assertContains(response, '匯入完成，部分資料未處理')
+        self.assertContains(response, '已成功保留可處理的資料')
+        self.assertContains(response, 'role 只接受 student 或 teacher')
+        self.assertContains(response, '找不到啟用中的社團「CSV Inactive Club」。')
 
     def test_account_csv_import_rejects_xlsx_upload(self):
         self.client.force_login(self.admin)

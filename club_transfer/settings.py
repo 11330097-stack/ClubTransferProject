@@ -117,6 +117,7 @@ DEFAULT_FROM_EMAIL = 'noreply@clubtransfer.edu.tw'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
+CSRF_FAILURE_VIEW = 'club_transfer.error_views.csrf_failure'
 
 # REST Framework settings
 REST_FRAMEWORK = {
