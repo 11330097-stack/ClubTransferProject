@@ -3,13 +3,16 @@
 {% block title %}指導老師管理{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-header">
     <h1 class="h3 mb-0">指導老師管理</h1>
     <a class="btn btn-primary btn-sm" href="{% url 'teacher_admin_create' %}">新增指導老師</a>
 </div>
 
-<form method="get" class="row g-2 mb-3">
-    <div class="col-sm-8 col-md-6">
+<div class="data-view">
+<div class="data-toolbar">
+<form method="get" class="data-toolbar-form">
+    <div class="data-search">
+        <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
         <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋登入帳號、Email 或姓名">
     </div>
     <div class="col-auto">
@@ -21,9 +24,10 @@
         </div>
     {% endif %}
 </form>
+</div>
 
-<div class="table-responsive">
-    <table class="table table-striped table-hover align-middle">
+<div class="table-responsive data-table-container">
+    <table class="table data-table data-table--cards data-table--sticky-header align-middle">
         <thead>
             <tr>
                 <th>登入帳號</th>
@@ -37,41 +41,41 @@
         <tbody>
             {% for teacher in teachers %}
                 <tr>
-                    <td>{{ teacher.username }}</td>
-                    <td>{{ teacher.first_name|default:"-" }}</td>
-                    <td>{{ teacher.email|default:"-" }}</td>
-                    <td>
+                    <td class="data-primary-cell" data-label="帳號"><span class="data-primary">{{ teacher.first_name|default:teacher.username }}</span><span class="data-secondary">{{ teacher.username }}</span></td>
+                    <td data-label="姓名">{{ teacher.first_name|default:"-" }}</td>
+                    <td class="data-wrap" data-label="Email">{{ teacher.email|default:"-" }}</td>
+                    <td data-label="狀態">
                         {% if teacher.is_active %}
                             <span class="badge bg-success">啟用</span>
                         {% else %}
                             <span class="badge bg-secondary">停用</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="指導社團">
                         {% for club in teacher.guided_clubs %}
                             <span class="badge bg-light text-dark border">{{ club.name }}</span>
                         {% empty %}
                             -
                         {% endfor %}
                     </td>
-                    <td>
-                        <div class="d-flex flex-wrap gap-1">
+                    <td data-label="操作">
+                        <div class="data-row-actions">
                             <a href="{% url 'teacher_admin_edit' teacher.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
                             {% if teacher.is_active %}
                                 <a href="{% url 'teacher_admin_deactivate' teacher.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
                             {% else %}
-                                <form method="post" action="{% url 'teacher_admin_reactivate' teacher.pk %}" class="d-inline">
+                                <form method="post" action="{% url 'teacher_admin_reactivate' teacher.pk %}" class="d-inline" data-workflow-form>
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-success" data-submitting-label="正在啟用…">重新啟用</button>
                                 </form>
                             {% endif %}
-                            <a href="{% url 'teacher_admin_delete' teacher.pk %}" class="btn btn-sm btn-danger">刪除</a>
+                            <a href="{% url 'teacher_admin_delete' teacher.pk %}" class="btn btn-sm btn-outline-danger">刪除</a>
                         </div>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted">沒有符合條件的指導老師。</td>
+                    <td colspan="6" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-users"></use></svg><strong>沒有符合條件的指導老師</strong><p>請調整搜尋關鍵字，或新增指導老師帳號。</p></div></td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -79,16 +83,13 @@
 </div>
 
 {% if is_paginated %}
-    <nav>
-        <ul class="pagination">
-            {% if page_obj.has_previous %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">上一頁</a></li>
-            {% endif %}
-            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-            {% if page_obj.has_next %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.next_page_number }}">下一頁</a></li>
-            {% endif %}
+    <nav aria-label="指導老師列表分頁">
+        <ul class="pagination data-pagination">
+            <li class="page-item{% if not page_obj.has_previous %} disabled{% endif %}">{% if page_obj.has_previous %}<a class="page-link" href="?q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}">上一頁</a>{% else %}<span class="page-link">上一頁</span>{% endif %}</li>
+            <li class="page-item active" aria-current="page"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            <li class="page-item{% if not page_obj.has_next %} disabled{% endif %}">{% if page_obj.has_next %}<a class="page-link" href="?q={{ q|urlencode }}&page={{ page_obj.next_page_number }}">下一頁</a>{% else %}<span class="page-link">下一頁</span>{% endif %}</li>
         </ul>
     </nav>
 {% endif %}
+</div>
 {% endblock %}

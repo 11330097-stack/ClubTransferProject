@@ -12,8 +12,8 @@ class TransferWindowForm(forms.ModelForm):
             'end_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
         }
         labels = {
-            'start_date': '轉社開始日期',
-            'end_date': '轉社結束日期',
+            'start_date': '申請開放日期',
+            'end_date': '申請截止日期',
         }
 
     def clean(self):

@@ -1,0 +1,75 @@
+{% load account_extras %}
+{% with current_url=request.resolver_match.url_name %}
+<nav class="app-navigation" aria-label="主要導覽">
+    <div class="nav-section">
+        <div class="nav-section-label">工作區</div>
+        <a href="{% url 'home' %}" class="app-nav-link{% if current_url|nav_is_active:'overview' %} active{% endif %}"{% if current_url|nav_is_active:'overview' %} aria-current="page"{% endif %}>
+            <svg class="nav-icon" aria-hidden="true"><use href="#icon-home"></use></svg>
+            <span>總覽</span>
+        </a>
+        <a href="{% url 'club_list' %}" class="app-nav-link{% if current_url|nav_is_active:'clubs' %} active{% endif %}"{% if current_url|nav_is_active:'clubs' %} aria-current="page"{% endif %}>
+            <svg class="nav-icon" aria-hidden="true"><use href="#icon-building"></use></svg>
+            <span>社團名錄</span>
+        </a>
+    </div>
+
+    {% if user.role == 'student' or user|can_review_transfers or user.is_superuser or user.role == 'admin' %}
+        <div class="nav-section">
+            <div class="nav-section-label">轉社作業</div>
+            {% if user.role == 'student' %}
+                {% if transfer_window_is_open %}
+                    <a href="{% url 'transfer_apply' %}" class="app-nav-link{% if current_url|nav_is_active:'transfer_apply' %} active{% endif %}"{% if current_url|nav_is_active:'transfer_apply' %} aria-current="page"{% endif %}>
+                        <svg class="nav-icon" aria-hidden="true"><use href="#icon-transfer"></use></svg>
+                        <span>申請轉社</span>
+                    </a>
+                {% endif %}
+                <a href="{% url 'my_requests' %}" class="app-nav-link{% if current_url|nav_is_active:'my_requests' %} active{% endif %}"{% if current_url|nav_is_active:'my_requests' %} aria-current="page"{% endif %}>
+                    <svg class="nav-icon" aria-hidden="true"><use href="#icon-file"></use></svg>
+                    <span>我的申請</span>
+                </a>
+            {% endif %}
+            {% if user|can_review_transfers %}
+                <a href="{% url 'pending_approvals' %}" class="app-nav-link{% if current_url|nav_is_active:'pending_approvals' %} active{% endif %}"{% if current_url|nav_is_active:'pending_approvals' %} aria-current="page"{% endif %}>
+                    <svg class="nav-icon" aria-hidden="true"><use href="#icon-inbox"></use></svg>
+                    <span>待審核申請</span>
+                    {% if user.is_superuser or user.role == 'admin' %}
+                        {% if admin_pending_review_count %}<span class="nav-count" aria-label="{{ admin_pending_review_count }} 封待審核">{{ admin_pending_review_count }}</span>{% endif %}
+                    {% endif %}
+                </a>
+            {% endif %}
+            {% if user.is_superuser or user.role == 'admin' %}
+                <a href="{% url 'all_requests' %}" class="app-nav-link{% if current_url|nav_is_active:'all_requests' %} active{% endif %}"{% if current_url|nav_is_active:'all_requests' %} aria-current="page"{% endif %}>
+                    <svg class="nav-icon" aria-hidden="true"><use href="#icon-list"></use></svg>
+                    <span>全校申請</span>
+                </a>
+                <a href="{% url 'transfer_record_archive_list' %}" class="app-nav-link{% if current_url|nav_is_active:'transfer_records' %} active{% endif %}"{% if current_url|nav_is_active:'transfer_records' %} aria-current="page"{% endif %}>
+                    <svg class="nav-icon" aria-hidden="true"><use href="#icon-archive"></use></svg>
+                    <span>轉社紀錄</span>
+                </a>
+                <a href="{% url 'transfer_window_settings' %}" class="app-nav-link{% if current_url|nav_is_active:'transfer_window' %} active{% endif %}"{% if current_url|nav_is_active:'transfer_window' %} aria-current="page"{% endif %}>
+                    <svg class="nav-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>
+                    <span>轉社期限</span>
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if user.is_superuser or user.role == 'admin' %}
+        <div class="nav-section">
+            <div class="nav-section-label">管理工具</div>
+            <a href="{% url 'club_admin_list' %}" class="app-nav-link{% if current_url|nav_is_active:'club_admin' %} active{% endif %}"{% if current_url|nav_is_active:'club_admin' %} aria-current="page"{% endif %}>
+                <svg class="nav-icon" aria-hidden="true"><use href="#icon-settings"></use></svg>
+                <span>社團管理</span>
+            </a>
+            <a href="{% url 'unassigned_account_list' %}" class="app-nav-link{% if current_url|nav_is_active:'unassigned_accounts' %} active{% endif %}"{% if current_url|nav_is_active:'unassigned_accounts' %} aria-current="page"{% endif %}>
+                <svg class="nav-icon" aria-hidden="true"><use href="#icon-user-check"></use></svg>
+                <span>成員分配</span>
+            </a>
+            <a href="{% url 'account_admin_list' %}" class="app-nav-link{% if current_url|nav_is_active:'account_admin' %} active{% endif %}"{% if current_url|nav_is_active:'account_admin' %} aria-current="page"{% endif %}>
+                <svg class="nav-icon" aria-hidden="true"><use href="#icon-users"></use></svg>
+                <span>帳號管理</span>
+            </a>
+        </div>
+    {% endif %}
+</nav>
+{% endwith %}

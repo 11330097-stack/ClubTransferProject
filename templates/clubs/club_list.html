@@ -3,14 +3,16 @@
 {% block title %}社團列表 - 社團轉社系統{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
     <div>
         <h1 class="h2 mb-1">社團列表</h1>
     </div>
 </div>
 
-<form method="get" class="row g-2 mb-4">
-    <div class="col-sm-8 col-md-6">
+<div class="data-toolbar">
+<form method="get" class="data-toolbar-form">
+    <div class="data-search">
+        <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
         <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="關鍵字搜尋社團名稱" list="club-name-options">
         <datalist id="club-name-options">
             {% for club_name in club_name_options %}
@@ -27,6 +29,7 @@
         </div>
     {% endif %}
 </form>
+</div>
 
 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
     {% for info in club_info_list %}
@@ -57,7 +60,7 @@
                 </div>
 
                 <div class="mt-3">
-                    <div class="progress" style="height: 20px;">
+                    <div class="progress progress-capacity">
                         {% widthratio info.actual_member_count info.club.max_members 100 as percentage %}
                         <div class="progress-bar {% if percentage >= 100 %}bg-danger{% elif percentage >= 80 %}bg-warning{% else %}bg-success{% endif %}"
                              role="progressbar"
@@ -79,7 +82,11 @@
     </div>
     {% empty %}
     <div class="col-12">
-        <div class="alert alert-info">目前沒有社團資料。</div>
+        <div class="data-empty data-empty-cell">
+            <svg class="data-empty-icon" aria-hidden="true"><use href="#icon-building"></use></svg>
+            <strong>{% if q %}找不到符合的社團{% else %}目前沒有社團資料{% endif %}</strong>
+            <p>{% if q %}請嘗試其他搜尋關鍵字。{% else %}社團建立後會顯示在這裡。{% endif %}</p>
+        </div>
     </div>
     {% endfor %}
 </div>

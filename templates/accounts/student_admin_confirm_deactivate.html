@@ -1,24 +1,3 @@
 {% extends "base.html" %}
-
-{% block title %}停用學生/社長{% endblock %}
-
-{% block content %}
-<h1 class="h3 mb-3">停用學生/社長帳號</h1>
-
-<div class="alert alert-warning">
-    確定要停用 {{ student.first_name|default:student.username }} ({{ student.email|default:student.username }}) 嗎？資料不會被刪除。
-</div>
-
-<form method="post">
-    {% csrf_token %}
-    {% if return_to_account_admin %}
-        <input type="hidden" name="next" value="account_admin_list">
-    {% endif %}
-    <button type="submit" class="btn btn-danger">停用</button>
-    {% if return_to_account_admin %}
-        <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>
-    {% else %}
-        <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">取消</a>
-    {% endif %}
-</form>
-{% endblock %}
+{% block title %}停用學生帳號{% endblock %}
+{% block content %}<div class="form-page"><section class="danger-zone"><h1 class="h3">停用學生帳號？</h1><p>停用後，<strong>{{ student.first_name|default:student.username }}</strong> 將無法登入；帳號資料與歷史紀錄會保留，因此之後可重新啟用。</p><div class="confirmation-summary mt-4"><dl><dt>帳號</dt><dd>{{ student.username }}</dd><dt>Email</dt><dd>{{ student.email|default:"未設定" }}</dd><dt>影響</dt><dd>停止登入與新的系統操作，不刪除資料</dd></dl></div><form method="post" class="form-actions" data-workflow-form>{% csrf_token %}{% if return_to_account_admin %}<input type="hidden" name="next" value="account_admin_list">{% endif %}{% if return_to_account_admin %}<a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% else %}<a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% endif %}<button type="submit" class="btn btn-danger" data-submitting-label="正在停用…">停用此學生帳號</button></form></section></div>{% endblock %}

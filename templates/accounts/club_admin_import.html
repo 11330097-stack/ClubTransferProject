@@ -3,61 +3,23 @@
 {% block title %}匯入社團 CSV{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">匯入社團 CSV</h1>
-    <a href="{% url 'club_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回社團管理</a>
-</div>
-
-<form method="post" enctype="multipart/form-data" class="card card-body mb-3">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <div>
-        <button type="submit" class="btn btn-primary">匯入</button>
-    </div>
-</form>
-
-<div class="card card-body mb-3">
-    <h2 class="h5">CSV 格式說明</h2>
-    <p class="mb-2">CSV 欄位需包含：</p>
-    <p class="mb-2"><code>code,name,teacher_username,president_username,location,max_members,description</code></p>
-    <p class="mb-2">指導老師與社長皆為必填，且必須對應啟用中的既有帳號；社長必須是未分配的一般學生，或該社團目前的社長。</p>
-    <p class="mb-2">請使用 Excel 另存新檔。</p>
-    <p class="mb-2">存檔類型請選擇 CSV UTF-8（逗號分隔）(*.csv)。</p>
-    <p class="mb-0">不要上傳 .xlsx 檔案。</p>
-</div>
-
-{% if result %}
-    <div class="card card-body mb-3">
-        <h2 class="h5">匯入結果</h2>
-        <ul class="mb-0">
-            <li>新增：{{ result.created }} 筆</li>
-            <li>更新：{{ result.updated }} 筆</li>
-            <li>略過：{{ result.skipped }} 筆</li>
-        </ul>
-    </div>
-
-    {% if result.errors %}
-        <div class="card card-body">
-            <h2 class="h5">錯誤</h2>
-            <div class="table-responsive">
-                <table class="table table-sm table-striped align-middle">
-                    <thead>
-                        <tr>
-                            <th>列號</th>
-                            <th>原因</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for error in result.errors %}
-                            <tr>
-                                <td>{{ error.row }}</td>
-                                <td>{{ error.reason }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+<div class="form-page">
+    <div class="page-header"><div><h1>匯入社團 CSV</h1><p class="page-header-description">批次建立或更新社團及其指導老師、社長設定。</p></div><a href="{% url 'club_admin_list' %}" class="btn btn-outline-secondary">返回社團管理</a></div>
+    <form method="post" enctype="multipart/form-data" class="form-shell mb-4" data-workflow-form novalidate>
+        {% csrf_token %}
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section">
+            <div class="import-dropzone">{% include "includes/form_field.html" with field=form.csv_file %}<span class="import-file-name" data-file-name aria-live="polite">尚未選擇檔案</span></div>
+            <div class="workflow-note mt-4"><strong>欄位：</strong>code、name、teacher_username、president_username、location、max_members、description。指導老師與社長必填且須為啟用中的既有帳號；社長須為未分配學生或該社團現任社長。請使用 CSV UTF-8，不要上傳 .xlsx。</div>
+        </section>
+        <div class="form-actions"><button type="submit" class="btn btn-primary" data-submitting-label="正在匯入…">匯入社團 CSV</button></div>
+    </form>
+    {% if result %}
+    <section class="form-shell" aria-labelledby="club-import-result-heading">
+        <div class="form-intro"><h2 id="club-import-result-heading">匯入結果</h2></div>
+        <div class="form-section"><div class="result-summary"><div class="result-summary-item"><strong>{{ result.created }}</strong>新增</div><div class="result-summary-item"><strong>{{ result.updated }}</strong>更新</div><div class="result-summary-item"><strong>{{ result.skipped }}</strong>略過</div><div class="result-summary-item"><strong>{{ result.errors|length }}</strong>失敗</div></div></div>
+        {% if result.errors %}<div class="table-responsive data-table-container"><table class="table data-table table-sm"><thead><tr><th>列號</th><th>原因</th></tr></thead><tbody>{% for error in result.errors %}<tr><td class="data-numeric">{{ error.row }}</td><td class="data-wrap">{{ error.reason }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+    </section>
     {% endif %}
-{% endif %}
+</div>
 {% endblock %}

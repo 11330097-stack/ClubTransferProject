@@ -3,7 +3,7 @@
 {% block title %}{{ archive.title }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-header">
     <div>
         <h1 class="h3 mb-1">{{ archive.title }}</h1>
         <div class="text-muted">
@@ -14,8 +14,8 @@
     <a href="{% url 'transfer_record_archive_list' %}" class="btn btn-outline-secondary btn-sm">返回列表</a>
 </div>
 
-<div class="table-responsive">
-    <table class="table table-striped table-hover align-middle">
+<div class="table-responsive data-table-container">
+    <table class="table data-table data-table--dense align-middle">
         <thead>
             <tr>
                 <th>學生</th>
@@ -30,20 +30,20 @@
         <tbody>
             {% for snapshot in snapshots %}
                 <tr>
-                    <td>
+                    <td class="data-primary-cell">
                         <div>{{ snapshot.student_name }}</div>
                         <div class="text-muted small">{{ snapshot.student_username }}</div>
                     </td>
                     <td>{{ snapshot.student_id|default:"—" }}</td>
                     <td>{{ snapshot.original_club_name }}</td>
                     <td>{{ snapshot.target_club_name }}</td>
-                    <td>{{ snapshot.status }}</td>
-                    <td>{{ snapshot.submitted_at|date:"Y/m/d H:i" }}</td>
-                    <td class="text-nowrap">{{ snapshot.approval_summary|linebreaksbr }}</td>
+                    <td><span class="badge bg-secondary">{{ snapshot.status }}</span></td>
+                    <td class="data-date">{{ snapshot.submitted_at|date:"Y/m/d H:i" }}</td>
+                    <td class="data-wrap">{{ snapshot.approval_summary|linebreaksbr }}</td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted">此批次沒有轉社紀錄。</td>
+                    <td colspan="7" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-archive"></use></svg><strong>此批次沒有轉社紀錄</strong><p>這個保存批次目前沒有任何申請快照。</p></div></td>
                 </tr>
             {% endfor %}
         </tbody>

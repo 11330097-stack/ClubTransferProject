@@ -1,89 +1,46 @@
 {% extends 'base.html' %}
 
-{% block title %}轉社期限設定 - 社團轉社系統{% endblock %}
+{% block title %}轉社申請期間設定{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-7">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">轉社期限設定</h4>
-            </div>
-            <div class="card-body">
-                {% if transfer_window %}
-                    <div class="alert alert-info">
-                        目前設定：{{ transfer_window.start_date|date:"Y/m/d" }} ~ {{ transfer_window.end_date|date:"Y/m/d" }}
-                        <br>
-                        目前狀態：{{ transfer_window.status_text }}
-                    </div>
-                    <div class="mb-3">
-                        {% if transfer_window.is_paused %}
-                            <form method="post" action="{% url 'transfer_window_resume' %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-success">恢復轉社期</button>
-                            </form>
-                        {% else %}
-                            <form method="post" action="{% url 'transfer_window_pause' %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-warning">暫停轉社期</button>
-                            </form>
-                        {% endif %}
-                    </div>
-                    <div class="border rounded p-3 mb-4">
-                        <div class="fw-semibold mb-2">轉社紀錄保存</div>
-                        <div class="text-muted small mb-3">
-                            此轉社期間共有 {{ transfer_record_archive_request_count }} 筆轉社申請紀錄。
-                        </div>
-                        {% if transfer_record_archive_existing %}
-                            <div class="alert alert-success mb-2">此轉社期已儲存。</div>
-                            <a href="{% url 'transfer_record_archive_detail' transfer_record_archive_existing.pk %}" class="btn btn-outline-primary">
-                                查看已儲存紀錄
-                            </a>
-                        {% elif transfer_record_archive_can_create %}
-                            <form method="post" action="{% url 'transfer_record_archive_create' %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-primary">儲存轉社記錄</button>
-                            </form>
-                        {% else %}
-                            <button type="button" class="btn btn-outline-secondary" disabled>儲存轉社記錄</button>
-                            <div class="text-muted small mt-2">轉社期暫停或截止後才能儲存。</div>
-                        {% endif %}
-                    </div>
-                {% else %}
-                    <div class="alert alert-warning">
-                        尚未設定轉社期間。未設定前，學生無法建立轉社申請。
-                    </div>
-                {% endif %}
+<div class="form-page">
+    <div class="page-header"><div><h1>轉社申請期間</h1><p class="page-header-description">設定學生可建立新申請的日期範圍，並管理暫停與紀錄封存。</p></div></div>
 
-                <form method="post">
-                    {% csrf_token %}
-                    {% if form.non_field_errors %}
-                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-                    {% endif %}
-
-                    <div class="mb-3">
-                        <label for="{{ form.start_date.id_for_label }}" class="form-label">{{ form.start_date.label }}</label>
-                        {{ form.start_date }}
-                        {% if form.start_date.errors %}
-                            <div class="text-danger small">{{ form.start_date.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="{{ form.end_date.id_for_label }}" class="form-label">{{ form.end_date.label }}</label>
-                        {{ form.end_date }}
-                        {% if form.end_date.errors %}
-                            <div class="text-danger small">{{ form.end_date.errors }}</div>
-                        {% endif %}
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">儲存設定</button>
-                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">返回首頁</a>
-                    </div>
-                </form>
+    {% if transfer_window %}
+    <section class="form-shell mb-4" aria-labelledby="window-status-heading">
+        <div class="form-intro"><h2 id="window-status-heading">目前設定</h2></div>
+        <div class="form-section">
+            <div class="workflow-context"><dl><dt>申請開放日期</dt><dd>{{ transfer_window.start_date|date:"Y/m/d" }}</dd><dt>申請截止日期</dt><dd>{{ transfer_window.end_date|date:"Y/m/d" }}</dd><dt>目前狀態</dt><dd><span class="badge {% if transfer_window.is_open %}bg-success{% elif transfer_window.is_paused %}bg-warning{% else %}bg-secondary{% endif %}">{{ transfer_window.status_text }}</span></dd></dl></div>
+            <div class="mt-4">
+            {% if transfer_window.is_paused %}
+                <form method="post" action="{% url 'transfer_window_resume' %}" data-workflow-form data-confirm-message="恢復轉社申請期間？在日期範圍內，符合資格的學生將可再次建立申請。">{% csrf_token %}<button type="submit" class="btn btn-success" data-submitting-label="正在恢復…">恢復接受轉社申請</button></form>
+            {% else %}
+                <form method="post" action="{% url 'transfer_window_pause' %}" data-workflow-form data-confirm-message="暫停轉社申請期間？學生將暫時無法建立新申請，既有申請與紀錄會保留。">{% csrf_token %}<button type="submit" class="btn btn-outline-warning" data-submitting-label="正在暫停…">暫停接受新申請</button></form>
+            {% endif %}
             </div>
         </div>
-    </div>
+    </section>
+    {% else %}
+    <div class="alert alert-warning" role="status">尚未設定轉社期間。完成下方設定前，學生無法建立轉社申請。</div>
+    {% endif %}
+
+    <form method="post" class="form-shell mb-4" data-workflow-form novalidate>
+        {% csrf_token %}
+        <div class="form-intro"><h2>{% if transfer_window %}更新申請日期{% else %}建立申請期間{% endif %}</h2><p>日期以學校系統目前時區判定；開始日期不可晚於截止日期。</p></div>
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section"><div class="form-grid">{% include "includes/form_field.html" with field=form.start_date %}{% include "includes/form_field.html" with field=form.end_date %}</div></section>
+        <div class="form-actions"><a href="{% url 'home' %}" class="btn btn-outline-secondary">取消</a><button type="submit" class="btn btn-primary" data-submitting-label="正在儲存…">儲存轉社日期設定</button></div>
+    </form>
+
+    {% if transfer_window %}
+    <section class="form-shell" aria-labelledby="archive-heading">
+        <div class="form-intro"><h2 id="archive-heading">轉社紀錄保存</h2><p>此期間共有 {{ transfer_record_archive_request_count }} 筆轉社申請。封存會建立當下的歷史快照，不會變更申請或社員資料。</p></div>
+        <div class="form-section">
+        {% if transfer_record_archive_existing %}<div class="alert alert-success mb-3">此轉社期已完成保存。</div><a href="{% url 'transfer_record_archive_detail' transfer_record_archive_existing.pk %}" class="btn btn-outline-primary">查看已保存紀錄</a>
+        {% elif transfer_record_archive_can_create %}<form method="post" action="{% url 'transfer_record_archive_create' %}" data-workflow-form data-confirm-message="保存此轉社期的 {{ transfer_record_archive_request_count }} 筆申請紀錄？系統會建立歷史快照，既有資料不會被刪除。">{% csrf_token %}<button type="submit" class="btn btn-outline-primary" data-submitting-label="正在保存…">保存 {{ transfer_record_archive_request_count }} 筆轉社紀錄</button></form>
+        {% else %}<button type="button" class="btn btn-outline-secondary" disabled aria-describedby="archive-disabled-reason">尚不能保存紀錄</button><div id="archive-disabled-reason" class="form-text">轉社期暫停或截止後才能保存。</div>{% endif %}
+        </div>
+    </section>
+    {% endif %}
 </div>
 {% endblock %}

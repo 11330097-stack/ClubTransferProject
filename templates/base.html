@@ -1,177 +1,123 @@
 <!DOCTYPE html>
-{% load account_extras %}
+{% load static account_extras %}
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}社團轉社系統{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .navbar-brand { font-weight: bold; }
-        .status-badge { font-size: 0.85em; }
-        .club-card { transition: transform 0.2s; }
-        .club-card:hover { transform: translateY(-2px); }
-        .progress-tracker { display: flex; justify-content: space-between; position: relative; }
-        .progress-tracker::before {
-            content: '';
-            position: absolute;
-            top: 15px;
-            left: 10%;
-            right: 10%;
-            height: 2px;
-            background: #dee2e6;
-            z-index: 0;
-        }
-        .progress-step {
-            text-align: center;
-            z-index: 1;
-            background: white;
-            padding: 0 10px;
-        }
-        .progress-step .badge {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 5px;
-        }
-        .progress-step.completed .badge { background-color: #198754; }
-        .progress-step.active .badge { background-color: #4891ff; }
-        .progress-step.pending .badge { background-color: #6c757d; }
-        .role-badge-student {
-            background-color: #0d6efd;
-            color: #fff;
-            border: 1px solid #0d6efd;
-        }
-        .role-badge-president {
-            background-color: #0dcaf0;
-            color: #fff;
-            border: 1px solid #0dcaf0;
-        }
-        .role-badge-teacher {
-            background-color: #212529;
-            color: #fff;
-            border: 1px solid #212529;
-        }
-        .role-badge-admin {
-            background-color: #6c757d;
-            color: #fff;
-            border: 1px solid #6c757d;
-        }
-    </style>
+    <link href="{% static 'css/design-system.css' %}" rel="stylesheet">
     {% block extra_css %}{% endblock %}
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="{% url 'home' %}">社團轉社系統</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'home' %}">首頁</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'club_list' %}">社團列表</a>
-                    </li>
-                    {% if user.is_authenticated %}
-                        {% if user.role == 'student' %}
-                            {% if transfer_window_is_open %}
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'transfer_apply' %}">申請轉社</a>
-                                </li>
-                            {% endif %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'my_requests' %}">我的申請</a>
+<body class="{% if user.is_authenticated %}app-authenticated{% else %}public-layout{% endif %}">
+    {% include 'includes/icon_sprite.html' %}
+
+    {% if user.is_authenticated %}
+        <div class="app-shell">
+            <aside class="app-sidebar d-none d-lg-flex" aria-label="應用程式側邊欄">
+                <a class="app-brand" href="{% url 'home' %}">
+                    <span class="app-brand-mark" aria-hidden="true"><svg><use href="#icon-transfer"></use></svg></span>
+                    <span><strong>社團轉社系統</strong><small>Club Transfer</small></span>
+                </a>
+                {% include 'includes/app_navigation.html' %}
+                <div class="sidebar-footer">校務管理工作區</div>
+            </aside>
+
+            <div class="app-frame">
+                <header class="app-topbar">
+                    <button class="mobile-menu-button d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavigation" aria-controls="mobileNavigation" aria-label="開啟導覽選單">
+                        <svg aria-hidden="true"><use href="#icon-menu"></use></svg>
+                    </button>
+                    <div class="app-topbar-context">{{ request.resolver_match.url_name|page_context_label }}</div>
+                    <div class="dropdown ms-auto">
+                        <button class="user-menu-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="開啟使用者選單">
+                            <span class="user-avatar" aria-hidden="true">{{ user.get_full_name|default:user.username|slice:':1'|upper }}</span>
+                            <span class="user-identity d-none d-sm-flex">
+                                <strong>{{ user.get_full_name|default:user.username }}</strong>
+                                <small>{{ user|display_role }}</small>
+                            </span>
+                            <svg class="user-menu-chevron d-none d-sm-block" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end user-dropdown">
+                            <li class="user-dropdown-summary">
+                                <strong>{{ user.get_full_name|default:user.username }}</strong>
+                                <span class="badge {{ user|role_badge_class }}">{{ user|display_role }}</span>
                             </li>
-                        {% endif %}
-                        {% if user|can_review_transfers %}
-                            <li class="nav-item">
-                                <a class="nav-link position-relative" href="{% url 'pending_approvals' %}">
-                                    待審核申請
-                                    {% if user.is_superuser or user.role == 'admin' %}
-                                        {% if admin_pending_review_count %}
-                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">!</span>
-                                        {% endif %}
-                                    {% endif %}
-                                </a>
+                            <li><a class="dropdown-item" href="{% url 'profile' %}"><svg class="nav-icon" aria-hidden="true"><use href="#icon-user"></use></svg>個人資料</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="post" action="{% url 'logout' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item logout-item"><svg class="nav-icon" aria-hidden="true"><use href="#icon-logout"></use></svg>登出</button>
+                                </form>
                             </li>
-                        {% endif %}
-                        {% if user.is_superuser or user.role == 'admin' %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'all_requests' %}">全校申請</a>
-                            </li>
-                        {% endif %}
-                        {% if user.is_superuser or user.role == 'admin' %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'transfer_record_archive_list' %}">轉社紀錄</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'transfer_window_settings' %}">轉社期限設定</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'club_admin_list' %}">社團管理</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'unassigned_account_list' %}">未分配帳號</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'account_admin_list' %}">帳號管理</a>
-                            </li>
-                        {% endif %}
-                    {% endif %}
-                </ul>
-                <ul class="navbar-nav">
-                    {% if user.is_authenticated %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                {{ user.get_full_name|default:user.username }} ({{ user|display_role }})
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{% url 'profile' %}">個人資料</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <form method="post" action="{% url 'logout' %}" class="d-inline">
-                                        {% csrf_token %}
-                                        <button type="submit" class="dropdown-item">登出</button>
-                                    </form>
-                                </li>
-                            </ul>
-                        </li>
-                    {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'login' %}">登入</a>
-                        </li>
-                    {% endif %}
-                </ul>
+                        </ul>
+                    </div>
+                </header>
+
+                <main class="app-main">
+                    <div class="app-content {% block content_width %}content-wide{% endblock %}">
+    {% else %}
+        <nav class="navbar navbar-expand site-navbar public-navbar" aria-label="公開導覽">
+            <div class="container">
+                <a class="navbar-brand" href="{% url 'home' %}">社團轉社系統</a>
+                <div class="navbar-nav ms-auto flex-row align-items-center gap-1">
+                    <a class="nav-link" href="{% url 'home' %}">首頁</a>
+                    <a class="nav-link" href="{% url 'club_list' %}">社團列表</a>
+                    <a class="btn btn-sm btn-light ms-2" href="{% url 'login' %}">登入</a>
+                </div>
+            </div>
+        </nav>
+        <main class="container site-main">
+    {% endif %}
+
+        {% if messages %}
+            <div class="app-message-stack" aria-label="系統訊息">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="關閉訊息"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+
+    {% if user.is_authenticated %}
+                    </div>
+                </main>
             </div>
         </div>
-    </nav>
 
-    <main class="container my-4">
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="offcanvas offcanvas-start mobile-navigation" tabindex="-1" id="mobileNavigation" aria-labelledby="mobileNavigationLabel">
+            <div class="offcanvas-header">
+                <a class="app-brand" href="{% url 'home' %}" id="mobileNavigationLabel">
+                    <span class="app-brand-mark" aria-hidden="true"><svg><use href="#icon-transfer"></use></svg></span>
+                    <span><strong>社團轉社系統</strong><small>Club Transfer</small></span>
+                </a>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="關閉導覽選單"></button>
+            </div>
+            <div class="offcanvas-body">
+                {% include 'includes/app_navigation.html' %}
+                <div class="mobile-account-actions">
+                    <a href="{% url 'profile' %}" class="app-nav-link"><svg class="nav-icon" aria-hidden="true"><use href="#icon-user"></use></svg><span>個人資料</span></a>
+                    <form method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="app-nav-link logout-nav-link"><svg class="nav-icon" aria-hidden="true"><use href="#icon-logout"></use></svg><span>登出</span></button>
+                    </form>
                 </div>
-            {% endfor %}
-        {% endif %}
-
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer class="bg-light py-3 mt-5">
-        <div class="container text-center text-muted">
-            <small>社團轉社系統 &copy; 2026</small>
+            </div>
         </div>
-    </footer>
+    {% else %}
+        </main>
+        <footer class="site-footer">
+            <div class="container text-center text-muted"><small>社團轉社系統 &copy; 2026</small></div>
+        </footer>
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/data-views.js' %}"></script>
+    <script src="{% static 'js/workflow-forms.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -1,75 +1,47 @@
 {% extends "base.html" %}
 
-{% block title %}匯入帳號 CSV{% endblock %}
+{% block title %}帳號建立與 CSV 匯入{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">帳號建立與 CSV 匯入</h1>
-    <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回帳號管理</a>
-</div>
+<div class="form-page form-page--wide">
+    <div class="page-header"><div><h1>帳號建立與 CSV 匯入</h1><p class="page-header-description">可建立單一帳號，或使用 CSV 批次新增與更新學生、老師帳號。</p></div><a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">返回帳號管理</a></div>
 
-<form method="post" class="card card-body mb-3">
-    {% csrf_token %}
-    <h2 class="h5">新增單一帳號</h2>
-    {{ single_form.as_p }}
-    <div>
-        <button type="submit" name="create_one" class="btn btn-primary">新增帳號</button>
-    </div>
-</form>
+    <form method="post" class="form-shell mb-4" data-workflow-form novalidate>
+        {% csrf_token %}
+        <div class="form-intro"><h2>新增單一帳號</h2><p>學生的登入帳號同時是學號；老師帳號不能設定學生社團。</p></div>
+        {% include "includes/form_error_summary.html" with form=single_form %}
+        <section class="form-section"><div class="form-grid">
+            {% include "includes/form_field.html" with field=single_form.role %}
+            {% include "includes/form_field.html" with field=single_form.login_id %}
+            {% include "includes/form_field.html" with field=single_form.first_name %}
+            {% include "includes/form_field.html" with field=single_form.email %}
+            {% include "includes/form_field.html" with field=single_form.class_name %}
+            {% include "includes/form_field.html" with field=single_form.seat_number %}
+            <div class="form-field--full">{% include "includes/form_field.html" with field=single_form.club %}</div>
+            {% include "includes/form_field.html" with field=single_form.password %}
+            {% include "includes/form_field.html" with field=single_form.password_confirm %}
+        </div></section>
+        <div class="form-actions"><button type="submit" name="create_one" class="btn btn-primary" data-submitting-label="正在建立…">建立單一帳號</button></div>
+    </form>
 
-<form method="post" enctype="multipart/form-data" class="card card-body mb-3">
-    {% csrf_token %}
-    <h2 class="h5">批次匯入 CSV</h2>
-    {{ form.as_p }}
-    <div>
-        <button type="submit" class="btn btn-primary">匯入</button>
-    </div>
-</form>
+    <form method="post" enctype="multipart/form-data" class="form-shell mb-4" data-workflow-form novalidate>
+        {% csrf_token %}
+        <div class="form-intro"><h2>批次匯入 CSV</h2><p>新帳號會建立，登入帳號相同的既有帳號會依匯入內容更新；無法處理的資料列會列在結果中。</p></div>
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section">
+            <div class="import-dropzone">{% include "includes/form_field.html" with field=form.csv_file %}<span class="import-file-name" data-file-name aria-live="polite">尚未選擇檔案</span></div>
+            <div class="workflow-note mt-4"><strong>必要欄位：</strong>role、login_id、name、email、class_name、seat_number、club_name、password。role 僅接受 student 或 teacher；新帳號密碼必填，更新時留空會保留原密碼。檔案必須是 CSV UTF-8，不支援 .xlsx。</div>
+            <details class="mt-4"><summary class="fw-semibold">查看 CSV 範例</summary><pre class="bg-light p-3 mt-3 mb-0 overflow-auto">{{ sample_csv }}</pre></details>
+        </section>
+        <div class="form-actions"><button type="submit" class="btn btn-primary" data-submitting-label="正在匯入…">匯入帳號 CSV</button></div>
+    </form>
 
-<div class="card card-body mb-3">
-    <h2 class="h5">CSV 格式</h2>
-    <p class="mb-2">CSV 欄位需包含：</p>
-    <p class="mb-2">必要欄位：role、login_id、name、email、class_name、seat_number、club_name、password。</p>
-    <p class="mb-2">role 只能是 student 或 teacher。學生的 login_id 同時是登入帳號與學號；老師的 login_id 是登入帳號。</p>
-    <p class="mb-2">新帳號 password 必填；更新既有帳號時留空即可保留原密碼。Email 可留空。</p>
-    <pre class="bg-light p-2">{{ sample_csv }}</pre>
-    <p class="mb-2">請使用 Excel 的：</p>
-    <p class="mb-2">「另存新檔 → CSV UTF-8（逗號分隔） (*.csv)」</p>
-    <p class="mb-0">本系統不支援 .xlsx 檔案。</p>
-</div>
-
-{% if result %}
-    <div class="card card-body mb-3">
-        <h2 class="h5">匯入結果</h2>
-        <ul class="mb-0">
-            <li>新增：{{ result.created }} 筆</li>
-            <li>更新：{{ result.updated }} 筆</li>
-            <li>略過：{{ result.skipped }} 筆</li>
-        </ul>
-    </div>
-
-    {% if result.errors %}
-        <div class="card card-body">
-            <h2 class="h5">錯誤</h2>
-            <div class="table-responsive">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>列</th>
-                            <th>原因</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for error in result.errors %}
-                            <tr>
-                                <td>{{ error.row }}</td>
-                                <td>{{ error.reason }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    {% if result %}
+    <section class="form-shell mb-4" aria-labelledby="account-import-result-heading">
+        <div class="form-intro"><h2 id="account-import-result-heading">匯入結果</h2></div>
+        <div class="form-section"><div class="result-summary"><div class="result-summary-item"><strong>{{ result.created }}</strong>新增</div><div class="result-summary-item"><strong>{{ result.updated }}</strong>更新</div><div class="result-summary-item"><strong>{{ result.skipped }}</strong>略過</div><div class="result-summary-item"><strong>{{ result.errors|length }}</strong>失敗</div></div></div>
+        {% if result.errors %}<div class="table-responsive data-table-container"><table class="table data-table table-sm"><thead><tr><th>列</th><th>原因</th></tr></thead><tbody>{% for error in result.errors %}<tr><td class="data-numeric">{{ error.row }}</td><td class="data-wrap">{{ error.reason }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+    </section>
     {% endif %}
-{% endif %}
+</div>
 {% endblock %}

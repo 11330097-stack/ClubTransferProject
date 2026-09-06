@@ -3,11 +3,13 @@
 {% block title %}我的申請 - 社團轉社系統{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">我的轉社申請</h2>
+<div class="page-header">
+    <h1>我的轉社申請</h1>
+</div>
 
 {% if requests %}
-<div class="table-responsive">
-    <table class="table table-hover">
+<div class="table-responsive data-table-container">
+    <table class="table data-table data-table--cards">
         <thead class="table-light">
             <tr>
                 <th>申請時間</th>
@@ -20,10 +22,10 @@
         <tbody>
             {% for req in requests %}
             <tr>
-                <td>{{ req.created_at|date:"Y/m/d H:i" }}</td>
-                <td>{{ req.original_club.name }}</td>
-                <td>{{ req.target_club.name }}</td>
-                <td>
+                <td class="data-primary-cell data-date" data-label="申請時間">{{ req.created_at|date:"Y/m/d H:i" }}</td>
+                <td data-label="原社團">{{ req.original_club.name }}</td>
+                <td data-label="目標社團">{{ req.target_club.name }}</td>
+                <td data-label="狀態">
                     {% if req.status == 'approved' %}
                         <span class="badge bg-success">{{ req.get_status_display }}</span>
                     {% elif req.status == 'rejected' %}
@@ -34,11 +36,13 @@
                         <span class="badge bg-primary">{{ req.get_status_display }}</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="操作">
+                    <div class="data-row-actions">
                     <a href="{% url 'request_detail' req.pk %}" class="btn btn-sm btn-outline-primary">查看詳細</a>
                     {% if req.status == 'returned' %}
                         <a href="{% url 'reselect_club' req.pk %}" class="btn btn-sm btn-warning">重新選擇</a>
                     {% endif %}
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -46,10 +50,12 @@
     </table>
 </div>
 {% else %}
-<div class="alert alert-info">
-    <p>您目前沒有任何轉社申請紀錄。</p>
+<div class="data-empty data-empty-cell">
+    <svg class="data-empty-icon" aria-hidden="true"><use href="#icon-file"></use></svg>
+    <strong>目前沒有轉社申請</strong>
+    <p>送出申請後，可以在這裡追蹤審核進度。</p>
     {% if user.role == 'student' and transfer_window_is_open %}
-        <a href="{% url 'transfer_apply' %}" class="btn btn-primary">立即申請轉社</a>
+        <a href="{% url 'transfer_apply' %}" class="btn btn-primary btn-sm">立即申請轉社</a>
     {% endif %}
 </div>
 {% endif %}

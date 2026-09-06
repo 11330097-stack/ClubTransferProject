@@ -123,6 +123,9 @@ class TransferApplyView(LoginRequiredMixin, TransferApplicantRequiredMixin, Tran
         form.fields['target_club'].queryset = available_clubs
         form.fields['target_club'].label = '目標社團'
         form.fields['target_club'].empty_label = '請選擇社團'
+        form.fields['target_club'].label_from_instance = lambda club: (
+            f'{club.name}（{club.get_actual_member_count()} / {club.max_members} 人）'
+        )
         form.fields['reason'].label = '轉社原因'
         form.fields['reason'].widget.attrs['rows'] = 4
 
@@ -272,6 +275,10 @@ class ReselectClubView(LoginRequiredMixin, TransferApplicantRequiredMixin, Updat
         
         form.fields['target_club'].queryset = available_clubs
         form.fields['target_club'].label = '重新選擇目標社團'
+        form.fields['target_club'].empty_label = '請選擇新的目標社團'
+        form.fields['target_club'].label_from_instance = lambda club: (
+            f'{club.name}（{club.get_actual_member_count()} / {club.max_members} 人）'
+        )
         
         return form
     

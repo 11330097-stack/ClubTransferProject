@@ -1,64 +1,27 @@
 {% extends 'base.html' %}
 
-{% block title %}申請轉社 - 社團轉社系統{% endblock %}
+{% block title %}申請轉社{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">申請轉社</h4>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info">
-                    <strong>目前社團：</strong>{{ user.club.name|default:"未加入任何社團" }}
-                </div>
-                
-                <form method="post">
-                    {% csrf_token %}
-                    
-                    <div class="mb-3">
-                        <label for="{{ form.target_club.id_for_label }}" class="form-label">
-                            目標社團 <span class="text-danger">*</span>
-                        </label>
-                        {{ form.target_club }}
-                        {% if form.target_club.errors %}
-                            <div class="text-danger small">{{ form.target_club.errors }}</div>
-                        {% endif %}
-                        <div class="form-text">系統會自動過濾已額滿或您目前所屬的社團</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="{{ form.reason.id_for_label }}" class="form-label">
-                            轉社原因
-                        </label>
-                        {{ form.reason }}
-                        {% if form.reason.errors %}
-                            <div class="text-danger small">{{ form.reason.errors }}</div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">提交申請</button>
-                        <a href="{% url 'home' %}" class="btn btn-outline-secondary">取消</a>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer">
-                <small class="text-muted">
-                    <strong>審核流程：</strong>原社長 → 原指導老師 → 新社長 → 新指導老師 → 訓育組
-                </small>
-            </div>
-        </div>
-    </div>
+<div class="form-page">
+    <form method="post" class="form-shell" data-workflow-form novalidate>
+        {% csrf_token %}
+        <div class="form-intro"><h1>申請轉社</h1><p>選擇希望轉入的社團。送出後會依序交由原社團、新社團與訓育組審核。</p></div>
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section" aria-labelledby="transfer-current-heading">
+            <div class="form-section__header"><h2 id="transfer-current-heading">目前狀態</h2></div>
+            <div class="workflow-context"><dl><dt>目前社團</dt><dd>{{ user.club.name|default:"未加入任何社團" }}</dd>{% if transfer_window %}<dt>申請期間</dt><dd>{{ transfer_window.start_date|date:"Y/m/d" }} 至 {{ transfer_window.end_date|date:"Y/m/d" }}</dd>{% endif %}</dl></div>
+        </section>
+        <section class="form-section" aria-labelledby="transfer-choice-heading">
+            <div class="form-section__header"><h2 id="transfer-choice-heading">選擇目標社團</h2><p>清單已排除目前社團、停用社團與已額滿社團，括號顯示目前人數與人數上限。</p></div>
+            {% include "includes/form_field.html" with field=form.target_club %}
+            <div class="mt-4">{% include "includes/form_field.html" with field=form.reason %}</div>
+        </section>
+        <section class="form-section" aria-labelledby="transfer-review-heading">
+            <div class="form-section__header"><h2 id="transfer-review-heading">送出後的流程</h2></div>
+            <div class="workflow-note">申請會先送交原社長與原指導老師，再由新社長、新指導老師及訓育組依序審核。只有完成最終核准後，系統才會變更您的所屬社團。</div>
+        </section>
+        <div class="form-actions"><a href="{% url 'home' %}" class="btn btn-outline-secondary">取消</a><button type="submit" class="btn btn-primary" data-submitting-label="正在送出申請…">送出轉社申請</button></div>
+    </form>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-// 為表單元素添加 Bootstrap 樣式
-document.querySelectorAll('select, textarea').forEach(el => {
-    el.classList.add('form-control');
-});
-</script>
 {% endblock %}

@@ -1,37 +1,46 @@
 {% extends "base.html" %}
 
-{% block title %}學生資料{% endblock %}
+{% block title %}{% if object %}編輯學生{% else %}新增學生{% endif %}{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">{% if object %}編輯學生{% else %}新增學生{% endif %}</h1>
-
-<form method="post" class="card card-body">
-    {% csrf_token %}
-    {% if return_to_account_admin %}
-        <input type="hidden" name="next" value="account_admin_list">
-    {% endif %}
-    {{ form.non_field_errors }}
-
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.help_text %}
-                <div class="form-text">{{ field.help_text }}</div>
-            {% endif %}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+<div class="form-page">
+    <form method="post" class="form-shell" data-workflow-form novalidate>
+        {% csrf_token %}
+        {% if return_to_account_admin %}<input type="hidden" name="next" value="account_admin_list">{% endif %}
+        <div class="form-intro">
+            <h1>{% if object %}編輯學生資料{% else %}新增學生{% endif %}</h1>
+            <p>{% if object %}更新學生身分、聯絡資料與社團分配。現任社長須先完成交接，才能停用或移出社團。{% else %}建立學生帳號並設定初始社團；學號同時是登入帳號。{% endif %}</p>
         </div>
-    {% endfor %}
-
-    <div>
-        <button type="submit" class="btn btn-primary">儲存</button>
-        {% if return_to_account_admin %}
-            <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">返回</a>
-        {% else %}
-            <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">返回</a>
-        {% endif %}
-    </div>
-</form>
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section" aria-labelledby="student-school-heading">
+            <div class="form-section__header"><h2 id="student-school-heading">學籍資料</h2></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.student_id %}
+                {% include "includes/form_field.html" with field=form.first_name %}
+                {% include "includes/form_field.html" with field=form.class_name %}
+                {% include "includes/form_field.html" with field=form.seat_number %}
+                <div class="form-field--full">{% include "includes/form_field.html" with field=form.email %}</div>
+            </div>
+        </section>
+        <section class="form-section" aria-labelledby="student-membership-heading">
+            <div class="form-section__header"><h2 id="student-membership-heading">身分、社團與帳號狀態</h2><p>社團額滿或學生有進行中的轉社申請時，系統仍會在伺服器端阻止不合法的變更。</p></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.role %}
+                {% include "includes/form_field.html" with field=form.club %}
+                <div class="form-field--full">{% include "includes/form_field.html" with field=form.is_active %}</div>
+            </div>
+        </section>
+        <section class="form-section" aria-labelledby="student-password-heading">
+            <div class="form-section__header"><h2 id="student-password-heading">{% if object %}變更密碼{% else %}初始密碼{% endif %}</h2><p>{% if object %}若不需修改密碼，兩個欄位皆留空。{% else %}請輸入並再次確認學生的初始密碼。{% endif %}</p></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.password %}
+                {% include "includes/form_field.html" with field=form.password_confirm %}
+            </div>
+        </section>
+        <div class="form-actions">
+            {% if return_to_account_admin %}<a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% else %}<a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% endif %}
+            <button type="submit" class="btn btn-primary" data-submitting-label="正在儲存…">{% if object %}儲存學生資料{% else %}建立學生帳號{% endif %}</button>
+        </div>
+    </form>
+</div>
 {% endblock %}

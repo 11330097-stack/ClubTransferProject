@@ -3,28 +3,42 @@
 {% block title %}新增帳號{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">新增帳號</h1>
-    <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary btn-sm">返回帳號管理</a>
-</div>
-
-<form method="post" class="card card-body">
-    {% csrf_token %}
-    {{ form.non_field_errors }}
-
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.help_text %}
-                <div class="form-text">{{ field.help_text }}</div>
-            {% endif %}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+<div class="form-page">
+    <form method="post" class="form-shell" data-workflow-form novalidate>
+        {% csrf_token %}
+        <div class="form-intro">
+            <h1>新增帳號</h1>
+            <p>建立學生或指導老師帳號。學生的登入帳號同時會作為學號；老師不會被分配到學生社團。</p>
         </div>
-    {% endfor %}
-
-    <button type="submit" class="btn btn-primary">新增帳號</button>
-</form>
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section" aria-labelledby="account-identity-heading">
+            <div class="form-section__header"><h2 id="account-identity-heading">身分與基本資料</h2><p>先選擇帳號身分，再填寫學校使用的識別資訊。</p></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.role %}
+                {% include "includes/form_field.html" with field=form.login_id %}
+                {% include "includes/form_field.html" with field=form.first_name %}
+                {% include "includes/form_field.html" with field=form.email %}
+            </div>
+        </section>
+        <section class="form-section" aria-labelledby="account-school-heading">
+            <div class="form-section__header"><h2 id="account-school-heading">學生資料與社團</h2><p>班級、座號與社團只會套用到學生帳號。</p></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.class_name %}
+                {% include "includes/form_field.html" with field=form.seat_number %}
+                <div class="form-field--full">{% include "includes/form_field.html" with field=form.club %}</div>
+            </div>
+        </section>
+        <section class="form-section" aria-labelledby="account-password-heading">
+            <div class="form-section__header"><h2 id="account-password-heading">初始密碼</h2><p>密碼必須通過系統既有的安全驗證，並由使用者妥善保管。</p></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.password %}
+                {% include "includes/form_field.html" with field=form.password_confirm %}
+            </div>
+        </section>
+        <div class="form-actions">
+            <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>
+            <button type="submit" class="btn btn-primary" data-submitting-label="正在建立…">建立帳號</button>
+        </div>
+    </form>
+</div>
 {% endblock %}

@@ -4,14 +4,15 @@
 {% block title %}批次刪除帳號{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">批次刪除帳號</h1>
+<div class="form-page form-page--wide"><section class="danger-zone">
+<h1 class="h3">批次刪除 {{ accounts|length }} 個帳號？</h1>
 
 <div class="alert alert-danger">
     請確認是否要批次刪除以下帳號。有歷史紀錄的帳號會改為停用，不會真正刪除。
 </div>
 
-<div class="table-responsive mb-3">
-    <table class="table table-striped align-middle">
+<div class="table-responsive data-table-container mb-3">
+    <table class="table data-table data-table--cards align-middle">
         <thead>
             <tr>
                 <th>姓名</th>
@@ -23,10 +24,10 @@
         <tbody>
             {% for account in accounts %}
                 <tr>
-                    <td>{{ account.first_name|default:account.username }}</td>
-                    <td>{{ account|display_role }}</td>
-                    <td>{{ account.email|default:"—" }}</td>
-                    <td>
+                    <td class="data-primary-cell" data-label="帳號"><span class="data-primary">{{ account.first_name|default:account.username }}</span><span class="data-secondary">{{ account.username }}</span></td>
+                    <td data-label="身分">{{ account|display_role }}</td>
+                    <td class="data-wrap" data-label="Email">{{ account.email|default:"—" }}</td>
+                    <td data-label="狀態">
                         {% if account.is_active %}
                             <span class="badge bg-success">啟用</span>
                         {% else %}
@@ -39,12 +40,12 @@
     </table>
 </div>
 
-<form method="post" action="{% url 'account_admin_bulk_delete' %}">
+<form method="post" action="{% url 'account_admin_bulk_delete' %}" class="form-actions" data-workflow-form>
     {% csrf_token %}
     {% for account in accounts %}
         <input type="hidden" name="account_ids" value="{{ account.pk }}">
     {% endfor %}
-    <button type="submit" class="btn btn-outline-danger">確認批次刪除</button>
     <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>
-</form>
+    <button type="submit" class="btn btn-danger" data-submitting-label="正在處理…">刪除或停用 {{ accounts|length }} 個帳號</button>
+</form></section></div>
 {% endblock %}

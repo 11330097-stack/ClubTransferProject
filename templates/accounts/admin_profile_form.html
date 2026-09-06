@@ -3,33 +3,14 @@
 {% block title %}編輯個人資料{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">編輯個人資料</h4>
-            </div>
-            <form method="post" class="card-body">
-                {% csrf_token %}
-                {{ form.non_field_errors }}
-
-                {% for field in form %}
-                    <div class="mb-3">
-                        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.help_text %}
-                            <div class="form-text">{{ field.help_text }}</div>
-                        {% endif %}
-                        {% for error in field.errors %}
-                            <div class="text-danger small">{{ error }}</div>
-                        {% endfor %}
-                    </div>
-                {% endfor %}
-
-                <button type="submit" class="btn btn-primary">儲存</button>
-                <a href="{% url 'profile' %}" class="btn btn-outline-secondary">取消</a>
-            </form>
-        </div>
-    </div>
+<div class="form-page">
+    <form method="post" class="form-shell" data-workflow-form novalidate>
+        {% csrf_token %}
+        <div class="form-intro"><h1>編輯個人資料</h1><p>更新您的登入帳號、顯示姓名與聯絡信箱。密碼欄位留空代表不修改。</p></div>
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section"><div class="form-grid">{% include "includes/form_field.html" with field=form.username %}{% include "includes/form_field.html" with field=form.first_name %}<div class="form-field--full">{% include "includes/form_field.html" with field=form.email %}</div></div></section>
+        <section class="form-section"><div class="form-section__header"><h2>變更密碼</h2><p>若要變更密碼，請完整填寫並確認新密碼。</p></div><div class="form-grid">{% include "includes/form_field.html" with field=form.password %}{% include "includes/form_field.html" with field=form.password_confirm %}</div></section>
+        <div class="form-actions"><a href="{% url 'profile' %}" class="btn btn-outline-secondary">取消</a><button type="submit" class="btn btn-primary" data-submitting-label="正在儲存…">儲存個人資料</button></div>
+    </form>
 </div>
 {% endblock %}

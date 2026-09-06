@@ -3,16 +3,19 @@
 {% block title %}社團管理{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-header">
     <h1 class="h3 mb-0">社團管理</h1>
-    <div>
+    <div class="page-header-actions">
         <a class="btn btn-outline-primary btn-sm" href="{% url 'club_admin_import' %}">匯入社團 CSV</a>
         <a class="btn btn-primary btn-sm" href="{% url 'club_admin_create' %}">新增社團</a>
     </div>
 </div>
 
-<form method="get" class="row g-2 mb-3">
-    <div class="col-sm-8 col-md-6">
+<div class="data-view">
+<div class="data-toolbar">
+<form method="get" class="data-toolbar-form">
+    <div class="data-search">
+        <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
         <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋社團名稱" list="club-name-options">
         <datalist id="club-name-options">
             {% for club_name in club_name_options %}
@@ -29,21 +32,23 @@
         </div>
     {% endif %}
 </form>
+</div>
 
-<form id="club-bulk-form" method="post">
+<form id="club-bulk-form" method="post" data-workflow-form>
     {% csrf_token %}
 </form>
 
-<div class="d-flex flex-wrap gap-2 mb-3">
-    <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-clubs">全選</button>
-    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-clubs">取消全選</button>
-    <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_delete' %}">批次刪除</button>
-    <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_deactivate' %}">批次停用</button>
-    <button type="submit" class="btn btn-outline-success btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_reactivate' %}">批次重新啟用</button>
+<div class="bulk-action-bar" data-selection-checkbox=".club-checkbox" data-selection-master="#toggle-all-clubs">
+    <span class="bulk-selection-count"><strong data-selected-count>0</strong> 個已選取</span>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-clubs" data-select-all>全選</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-clubs" data-clear-selection>取消全選</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_delete' %}" data-confirm-message="安全刪除已選取的 {count} 個社團？系統會解除成員分配；有轉社歷史的社團只會停用。" data-submitting-label="正在處理…">批次安全刪除</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_deactivate' %}" data-confirm-message="停用已選取的 {count} 個社團？系統會解除成員分配並清空指導老師與社長。" data-submitting-label="正在停用…">批次停用</button>
+    <button type="submit" class="btn btn-outline-success btn-sm" form="club-bulk-form" formaction="{% url 'club_admin_bulk_reactivate' %}" data-confirm-message="重新啟用已選取的 {count} 個社團？請確認之後仍會補齊有效的指導老師與社長。" data-submitting-label="正在啟用…">批次重新啟用</button>
 </div>
 
-<div class="table-responsive">
-    <table class="table table-striped table-hover align-middle">
+<div class="table-responsive data-table-container">
+    <table class="table data-table data-table--cards data-table--sticky-header align-middle">
         <thead>
             <tr>
                 <th>
@@ -61,42 +66,48 @@
         <tbody>
             {% for club in clubs %}
                 <tr>
-                    <td>
+                    <td aria-label="選取社團">
                         <input type="checkbox" class="form-check-input club-checkbox" name="club_ids" value="{{ club.pk }}" form="club-bulk-form" aria-label="選取 {{ club.name }}">
                     </td>
-                    <td>{{ club.name }}</td>
-                    <td>{{ club.teacher|default:"-" }}</td>
-                    <td>{{ club.president|default:"-" }}</td>
-                    <td>{{ club.location|default:"-" }}</td>
-                    <td>{{ club.actual_member_count }} / {{ club.max_members }}</td>
-                    <td>
+                    <td class="data-primary-cell" data-label="社團"><span class="data-primary">{{ club.name }}</span></td>
+                    <td class="data-wrap" data-label="指導老師">{{ club.teacher|default:"-" }}</td>
+                    <td class="data-wrap" data-label="社長">{{ club.president|default:"-" }}</td>
+                    <td data-label="場地">{{ club.location|default:"-" }}</td>
+                    <td class="data-numeric" data-label="人數">{{ club.actual_member_count }} / {{ club.max_members }}</td>
+                    <td data-label="狀態">
                         {% if club.is_active %}
                             <span class="badge bg-success">啟用</span>
                         {% else %}
                             <span class="badge bg-secondary">停用</span>
                         {% endif %}
                     </td>
-                    <td>
-                        <div class="d-flex flex-wrap gap-1">
+                    <td data-label="操作">
+                        <div class="data-row-actions">
                             <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-sm btn-outline-primary">編輯</a>
                             {% if club.is_active %}
-                                <form method="post" action="{% url 'club_admin_deactivate' club.pk %}" class="d-inline">
+                                <form method="post" action="{% url 'club_admin_deactivate' club.pk %}" class="d-inline" data-workflow-form data-confirm-message="停用 {{ club.name }}？系統會解除成員分配，並清空指導老師與社長；轉社歷史會保留。">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-outline-danger">停用</button>
                                 </form>
                             {% else %}
-                                <form method="post" action="{% url 'club_admin_reactivate' club.pk %}" class="d-inline">
+                                <form method="post" action="{% url 'club_admin_reactivate' club.pk %}" class="d-inline" data-workflow-form>
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-success" data-submitting-label="正在啟用…">重新啟用</button>
                                 </form>
                             {% endif %}
-                            <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-danger">刪除</a>
+                            <a href="{% url 'club_admin_delete' club.pk %}" class="btn btn-sm btn-outline-danger">刪除</a>
                         </div>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted">沒有符合條件的社團。</td>
+                    <td colspan="8" class="data-empty-cell">
+                        <div class="data-empty">
+                            <svg class="data-empty-icon" aria-hidden="true"><use href="#icon-building"></use></svg>
+                            <strong>沒有符合條件的社團</strong>
+                            <p>請調整搜尋關鍵字，或建立新的社團資料。</p>
+                        </div>
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -104,18 +115,19 @@
 </div>
 
 {% if is_paginated %}
-    <nav>
-        <ul class="pagination">
-            {% if page_obj.has_previous %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">上一頁</a></li>
-            {% endif %}
-            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-            {% if page_obj.has_next %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.next_page_number }}">下一頁</a></li>
-            {% endif %}
+    <nav aria-label="社團列表分頁">
+        <ul class="pagination data-pagination">
+            <li class="page-item{% if not page_obj.has_previous %} disabled{% endif %}">
+                {% if page_obj.has_previous %}<a class="page-link" href="?q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}">上一頁</a>{% else %}<span class="page-link">上一頁</span>{% endif %}
+            </li>
+            <li class="page-item active" aria-current="page"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            <li class="page-item{% if not page_obj.has_next %} disabled{% endif %}">
+                {% if page_obj.has_next %}<a class="page-link" href="?q={{ q|urlencode }}&page={{ page_obj.next_page_number }}">下一頁</a>{% else %}<span class="page-link">下一頁</span>{% endif %}
+            </li>
         </ul>
     </nav>
 {% endif %}
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

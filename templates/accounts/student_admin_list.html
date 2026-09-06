@@ -4,16 +4,19 @@
 {% block title %}學生管理{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-header">
     <h1 class="h3 mb-0">學生管理</h1>
-    <div>
+    <div class="page-header-actions">
         <a class="btn btn-outline-primary btn-sm" href="{% url 'student_admin_import' %}">匯入學生 CSV</a>
         <a class="btn btn-primary btn-sm" href="{% url 'student_admin_create' %}">新增學生</a>
     </div>
 </div>
 
-<form method="get" class="row g-2 mb-3">
-    <div class="col-sm-8 col-md-6">
+<div class="data-view">
+<div class="data-toolbar">
+<form method="get" class="data-toolbar-form">
+    <div class="data-search">
+        <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
         <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋登入帳號、Email、學號或姓名">
     </div>
     <div class="col-auto">
@@ -25,21 +28,23 @@
         </div>
     {% endif %}
 </form>
+</div>
 
-<form id="bulk-student-form" method="post">
+<form id="bulk-student-form" method="post" data-workflow-form>
     {% csrf_token %}
 </form>
 
-<div class="d-flex flex-wrap gap-2 mb-3">
-    <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-students">全選</button>
-    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-students">取消全選</button>
-    <button type="submit" class="btn btn-outline-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_deactivate' %}">批次停用</button>
-    <button type="submit" class="btn btn-outline-success btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_reactivate' %}">批次重新啟用</button>
+<div class="bulk-action-bar" data-selection-checkbox=".student-checkbox" data-selection-master="#toggle-all-students">
+    <span class="bulk-selection-count"><strong data-selected-count>0</strong> 個已選取</span>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="select-all-students" data-select-all>全選</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-students" data-clear-selection>取消全選</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_deactivate' %}" data-confirm-message="停用已選取的 {count} 位學生？帳號資料與歷史紀錄會保留。" data-submitting-label="正在停用…">批次停用</button>
+    <button type="submit" class="btn btn-outline-success btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_reactivate' %}" data-confirm-message="重新啟用已選取的 {count} 位學生？" data-submitting-label="正在啟用…">批次重新啟用</button>
     <button type="submit" class="btn btn-danger btn-sm" form="bulk-student-form" formaction="{% url 'student_admin_bulk_delete_confirm' %}">批次刪除</button>
 </div>
 
-<div class="table-responsive">
-    <table class="table table-striped table-hover align-middle">
+<div class="table-responsive data-table-container">
+    <table class="table data-table data-table--dense data-table--sticky-header align-middle">
         <thead>
             <tr>
                 <th scope="col">
@@ -47,8 +52,8 @@
                 </th>
                 <th>登入帳號</th>
                 <th>Student ID</th>
-                <th>班級</th>
-                <th>座號</th>
+                <th class="data-col-low-priority">班級</th>
+                <th class="data-col-low-priority data-numeric">座號</th>
                 <th>姓名</th>
                 <th>Email</th>
                 <th>社團</th>
@@ -65,15 +70,16 @@
                             <input type="checkbox" class="form-check-input student-checkbox" name="student_ids" value="{{ student.pk }}" form="bulk-student-form" aria-label="選取 {{ student.username }}">
                         {% endif %}
                     </td>
-                    <td>{{ student.username }}</td>
+                    <td class="data-primary-cell"><span class="data-primary">{{ student.username }}</span><span class="data-secondary">{{ student.first_name|default:"未設定姓名" }}</span></td>
                     <td>{{ student.student_id }}</td>
-                    <td>{{ student.class_name|default:"-" }}</td>
-                    <td>{{ student.seat_number|default:"-" }}</td>
+                    <td class="data-col-low-priority">{{ student.class_name|default:"-" }}</td>
+                    <td class="data-col-low-priority data-numeric">{{ student.seat_number|default:"-" }}</td>
                     <td>{{ student.first_name }}</td>
-                    <td>{{ student.email }}</td>
+                    <td class="data-wrap">{{ student.email|default:"-" }}</td>
                     <td>{{ student.club|default:"-" }}</td>
-                    <td>{{ student|display_role }}</td>
+                    <td><span class="badge {{ student|role_badge_class }}">{{ student|display_role }}</span></td>
                     <td>
+                        <div class="data-row-actions">
                         {% if student.is_active %}
                             <span class="badge bg-success">啟用</span>
                         {% else %}
@@ -85,7 +91,7 @@
                             編輯
                         </a>
                         {% if student.is_active and student.role == 'student' %}
-                            <form method="post" action="{% url 'student_admin_promote_president' student.pk %}" class="d-inline">
+                            <form method="post" action="{% url 'student_admin_promote_president' student.pk %}" class="d-inline" data-workflow-form data-confirm-message="將 {{ student.first_name|default:student.username }} 設為 {{ student.club.name }} 的社長？目前社長會改為一般學生並留在該社團。">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-outline-success">晉升為社長</button>
                             </form>
@@ -94,18 +100,19 @@
                             {% if student.is_active %}
                                 <a href="{% url 'student_admin_deactivate' student.pk %}" class="btn btn-sm btn-outline-danger">停用</a>
                             {% else %}
-                                <form method="post" action="{% url 'student_admin_reactivate' student.pk %}" class="d-inline">
+                                <form method="post" action="{% url 'student_admin_reactivate' student.pk %}" class="d-inline" data-workflow-form>
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-success">重新啟用</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-success" data-submitting-label="正在啟用…">重新啟用</button>
                                 </form>
                             {% endif %}
-                            <a href="{% url 'student_admin_delete' student.pk %}" class="btn btn-sm btn-danger">刪除</a>
+                            <a href="{% url 'student_admin_delete' student.pk %}" class="btn btn-sm btn-outline-danger">刪除</a>
                         {% endif %}
+                        </div>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="11" class="text-center text-muted">沒有符合條件的學生。</td>
+                    <td colspan="11" class="data-empty-cell"><div class="data-empty"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-users"></use></svg><strong>沒有符合條件的學生</strong><p>請調整搜尋關鍵字，或新增學生帳號。</p></div></td>
                 </tr>
             {% endfor %}
         </tbody>
@@ -113,18 +120,15 @@
 </div>
 
 {% if is_paginated %}
-    <nav>
-        <ul class="pagination">
-            {% if page_obj.has_previous %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">上一頁</a></li>
-            {% endif %}
-            <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-            {% if page_obj.has_next %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ page_obj.next_page_number }}">下一頁</a></li>
-            {% endif %}
+    <nav aria-label="學生列表分頁">
+        <ul class="pagination data-pagination">
+            <li class="page-item{% if not page_obj.has_previous %} disabled{% endif %}">{% if page_obj.has_previous %}<a class="page-link" href="?q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}">上一頁</a>{% else %}<span class="page-link">上一頁</span>{% endif %}</li>
+            <li class="page-item active" aria-current="page"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            <li class="page-item{% if not page_obj.has_next %} disabled{% endif %}">{% if page_obj.has_next %}<a class="page-link" href="?q={{ q|urlencode }}&page={{ page_obj.next_page_number }}">下一頁</a>{% else %}<span class="page-link">下一頁</span>{% endif %}</li>
         </ul>
     </nav>
 {% endif %}
+</div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const checkboxes = Array.from(document.querySelectorAll('.student-checkbox'));

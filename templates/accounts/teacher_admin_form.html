@@ -1,37 +1,34 @@
 {% extends "base.html" %}
 
-{% block title %}指導老師資料{% endblock %}
+{% block title %}{% if object %}編輯指導老師{% else %}新增指導老師{% endif %}{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">{% if object %}編輯指導老師{% else %}新增指導老師{% endif %}</h1>
-
-<form method="post" class="card card-body">
-    {% csrf_token %}
-    {% if return_to_account_admin %}
-        <input type="hidden" name="next" value="account_admin_list">
-    {% endif %}
-    {{ form.non_field_errors }}
-
-    {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.help_text %}
-                <div class="form-text">{{ field.help_text }}</div>
-            {% endif %}
-            {% for error in field.errors %}
-                <div class="text-danger small">{{ error }}</div>
-            {% endfor %}
+<div class="form-page">
+    <form method="post" class="form-shell" data-workflow-form novalidate>
+        {% csrf_token %}
+        {% if return_to_account_admin %}<input type="hidden" name="next" value="account_admin_list">{% endif %}
+        <div class="form-intro"><h1>{% if object %}編輯指導老師{% else %}新增指導老師{% endif %}</h1><p>管理老師的登入資料與帳號狀態。社團指導關係請在社團管理中設定。</p></div>
+        {% include "includes/form_error_summary.html" with form=form %}
+        <section class="form-section" aria-labelledby="teacher-identity-heading">
+            <div class="form-section__header"><h2 id="teacher-identity-heading">帳號與聯絡資料</h2></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.username %}
+                {% include "includes/form_field.html" with field=form.first_name %}
+                <div class="form-field--full">{% include "includes/form_field.html" with field=form.email %}</div>
+                {% if object %}<div class="form-field--full">{% include "includes/form_field.html" with field=form.is_active %}</div>{% endif %}
+            </div>
+        </section>
+        <section class="form-section" aria-labelledby="teacher-password-heading">
+            <div class="form-section__header"><h2 id="teacher-password-heading">{% if object %}變更密碼{% else %}初始密碼{% endif %}</h2><p>{% if object %}不變更密碼時，請將兩個欄位留空。{% else %}請輸入並再次確認老師的初始密碼。{% endif %}</p></div>
+            <div class="form-grid">
+                {% include "includes/form_field.html" with field=form.password %}
+                {% include "includes/form_field.html" with field=form.password_confirm %}
+            </div>
+        </section>
+        <div class="form-actions">
+            {% if return_to_account_admin %}<a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% else %}<a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% endif %}
+            <button type="submit" class="btn btn-primary" data-submitting-label="正在儲存…">{% if object %}儲存老師資料{% else %}建立老師帳號{% endif %}</button>
         </div>
-    {% endfor %}
-
-    <div>
-        <button type="submit" class="btn btn-primary">儲存</button>
-        {% if return_to_account_admin %}
-            <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">返回</a>
-        {% else %}
-            <a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">返回</a>
-        {% endif %}
-    </div>
-</form>
+    </form>
+</div>
 {% endblock %}

@@ -91,8 +91,8 @@
                 {% if logs %}
                 <hr>
                 <h6 class="text-muted">審核紀錄</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
+                <div class="table-responsive data-table-container">
+                    <table class="table data-table table-sm">
                         <thead>
                             <tr>
                                 <th>時間</th>
@@ -105,7 +105,7 @@
                         <tbody>
                             {% for log in logs %}
                             <tr>
-                                <td>{{ log.created_at|date:"m/d H:i" }}</td>
+                                <td class="data-date">{{ log.created_at|date:"Y/m/d H:i" }}</td>
                                 <td>{{ log.approver.get_full_name|default:log.approver.username }}</td>
                                 <td>{{ log.get_approval_stage_display|default:log.approval_stage }}</td>
                                 <td>
@@ -117,7 +117,7 @@
                                         <span class="badge bg-warning">退回</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ log.comment|default:"-" }}</td>
+                                <td class="data-wrap">{{ log.comment|default:"-" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

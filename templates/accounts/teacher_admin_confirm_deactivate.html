@@ -1,24 +1,3 @@
 {% extends "base.html" %}
-
 {% block title %}停用指導老師{% endblock %}
-
-{% block content %}
-<h1 class="h3 mb-3">停用指導老師帳號</h1>
-
-<div class="alert alert-warning">
-    確定要停用 {{ teacher.first_name|default:teacher.username }} ({{ teacher.email|default:teacher.username }}) 嗎？若此老師正在指導社團，社團的指導老師欄位會被清空。
-</div>
-
-<form method="post">
-    {% csrf_token %}
-    {% if return_to_account_admin %}
-        <input type="hidden" name="next" value="account_admin_list">
-    {% endif %}
-    <button type="submit" class="btn btn-danger">停用</button>
-    {% if return_to_account_admin %}
-        <a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>
-    {% else %}
-        <a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">取消</a>
-    {% endif %}
-</form>
-{% endblock %}
+{% block content %}<div class="form-page"><section class="danger-zone"><h1 class="h3">停用指導老師帳號？</h1><p>停用後，<strong>{{ teacher.first_name|default:teacher.username }}</strong> 將無法登入。若老師正在指導社團，該社團的指導老師欄位會被清空；帳號與審核歷史會保留，可稍後重新啟用。</p><div class="confirmation-summary mt-4"><dl><dt>帳號</dt><dd>{{ teacher.username }}</dd><dt>Email</dt><dd>{{ teacher.email|default:"未設定" }}</dd><dt>可逆性</dt><dd>帳號可重新啟用；社團指導關係需重新設定</dd></dl></div><form method="post" class="form-actions" data-workflow-form>{% csrf_token %}{% if return_to_account_admin %}<input type="hidden" name="next" value="account_admin_list">{% endif %}{% if return_to_account_admin %}<a href="{% url 'account_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% else %}<a href="{% url 'teacher_admin_list' %}" class="btn btn-outline-secondary">取消</a>{% endif %}<button type="submit" class="btn btn-danger" data-submitting-label="正在停用…">停用此老師帳號</button></form></section></div>{% endblock %}

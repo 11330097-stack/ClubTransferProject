@@ -3,17 +3,18 @@
 {% block title %}全校申請管理 - 社團轉社系統{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header">
     <h2 class="mb-0">全校轉社申請管理</h2>
-    <form method="post" action="{% url 'delete_all_request_records' %}" onsubmit="return confirm('確定要刪除所有全校申請紀錄嗎？此操作無法復原。');">
+    <form method="post" action="{% url 'delete_all_request_records' %}" data-workflow-form data-confirm-message="永久刪除全部 {{ total_count }} 筆全校轉社申請及其審核紀錄？學生、社團與目前社員分配不會變更；此操作無法復原。">
         {% csrf_token %}
-        <button type="submit" class="btn btn-outline-danger btn-sm">紀錄一鍵刪除</button>
+        <button type="submit" class="btn btn-outline-danger btn-sm" data-submitting-label="正在刪除…">刪除全部 {{ total_count }} 筆紀錄</button>
     </form>
 </div>
 
+<div class="data-view">
 {% if requests %}
-<div class="table-responsive">
-    <table class="table table-hover align-middle">
+<div class="table-responsive data-table-container">
+    <table class="table data-table data-table--cards data-table--sticky-header align-middle">
         <thead class="table-light">
             <tr>
                 <th>編號</th>
@@ -28,12 +29,12 @@
         <tbody>
             {% for req in requests %}
             <tr>
-                <td>#{{ req.id }}</td>
-                <td>{{ req.created_at|date:"Y/m/d H:i" }}</td>
-                <td>{{ req.student.get_full_name|default:req.student.username }}</td>
-                <td>{{ req.original_club.name }}</td>
-                <td>{{ req.target_club.name }}</td>
-                <td>
+                <td class="data-primary-cell" data-label="編號"><span class="data-primary">#{{ req.id }}</span></td>
+                <td class="data-date" data-label="申請時間">{{ req.created_at|date:"Y/m/d H:i" }}</td>
+                <td data-label="申請人"><span class="data-primary">{{ req.student.get_full_name|default:req.student.username }}</span><span class="data-secondary">{{ req.student.username }}</span></td>
+                <td data-label="原社團">{{ req.original_club.name }}</td>
+                <td data-label="目標社團">{{ req.target_club.name }}</td>
+                <td data-label="狀態">
                     {% if req.status == 'approved' %}
                         <span class="badge bg-success">{{ req.get_status_display }}</span>
                     {% elif req.status == 'rejected' %}
@@ -46,12 +47,14 @@
                         <span class="badge bg-primary">{{ req.get_status_display }}</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="操作">
+                    <div class="data-row-actions">
                     <a href="{% url 'request_detail' req.pk %}" class="btn btn-sm btn-outline-primary">查看</a>
                     {% if req.status == 'admin_pending' %}
                         <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approveModal{{ req.id }}">核准</button>
                     {% endif %}
                     <a href="{% url 'delete_request_record' req.pk %}" class="btn btn-sm btn-outline-danger">刪除紀錄</a>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -65,24 +68,24 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">核准轉社申請</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title">最終核准此轉社申請？</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
             </div>
             <div class="modal-body">
-                <p><strong>申請人：</strong>{{ req.student.get_full_name|default:req.student.username }}</p>
-                <p><strong>原社團：</strong>{{ req.original_club.name }}</p>
-                <p><strong>目標社團：</strong>{{ req.target_club.name }}</p>
-                <form id="approveForm{{ req.id }}" method="post" action="{% url 'approve_request' req.pk %}">
+                <div class="modal-workflow-route mb-3"><span>{{ req.student.get_full_name|default:req.student.username }}</span><span aria-hidden="true">·</span><span>{{ req.original_club.name }} → {{ req.target_club.name }}</span></div>
+                <p>送出後學生會移至「{{ req.target_club.name }}」，系統並會更新原社團與目標社團的人數。</p>
+                <p class="small text-muted">目標社團目前 {{ req.target_club.get_actual_member_count }} / {{ req.target_club.max_members }} 人；系統會在核准時再次檢查容量。</p>
+                <form id="approveForm{{ req.id }}" method="post" action="{% url 'approve_request' req.pk %}" data-workflow-form>
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label class="form-label">核准備註，可留空</label>
-                        <textarea name="comment" class="form-control" rows="3"></textarea>
+                        <label class="form-label" for="adminApproveComment{{ req.id }}">核准備註 <span class="form-optional">選填</span></label>
+                        <textarea id="adminApproveComment{{ req.id }}" name="comment" class="form-control" rows="3"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="submit" form="approveForm{{ req.id }}" class="btn btn-success">確認核准</button>
+                <button type="submit" form="approveForm{{ req.id }}" class="btn btn-success" data-submitting-label="正在核准…">最終核准並移轉學生</button>
             </div>
         </div>
     </div>
@@ -125,6 +128,7 @@
     </div>
 </div>
 {% else %}
-<div class="alert alert-info">目前沒有任何轉社申請紀錄。</div>
+<div class="data-empty data-empty-cell"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-file"></use></svg><strong>尚無全校轉社申請</strong><p>學生送出申請後，紀錄會顯示在這裡。</p></div>
 {% endif %}
+</div>
 {% endblock %}

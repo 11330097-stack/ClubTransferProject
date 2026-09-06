@@ -4,14 +4,14 @@
 {% block title %}分配紀錄{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="page-header">
     <h1 class="h3 mb-0">分配紀錄</h1>
     <a href="{% url 'unassigned_account_list' %}" class="btn btn-outline-secondary btn-sm">返回未分配帳號</a>
 </div>
 
 {% if records %}
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
+    <div class="table-responsive data-table-container">
+        <table class="table data-table data-table--cards align-middle">
             <thead>
                 <tr>
                     <th>學生姓名</th>
@@ -26,12 +26,12 @@
             <tbody>
                 {% for record in records %}
                     <tr>
-                        <td>{{ record.student_name }}</td>
-                        <td>{{ record.original_club_name }}</td>
-                        <td>{{ record.target_club_name }}</td>
-                        <td>{{ record.operation_type }}</td>
-                        <td>{{ record.operated_at|date:"Y/m/d H:i" }}</td>
-                        <td>
+                        <td class="data-primary-cell" data-label="學生"><span class="data-primary">{{ record.student_name }}</span></td>
+                        <td data-label="原社團">{{ record.original_club_name }}</td>
+                        <td data-label="新社團">{{ record.target_club_name }}</td>
+                        <td data-label="操作類型">{{ record.operation_type }}</td>
+                        <td class="data-date" data-label="操作時間">{{ record.operated_at|date:"Y/m/d H:i" }}</td>
+                        <td data-label="操作者">
                             {% if record.operator %}
                                 {{ record.operator.get_full_name|default:record.operator.username }}
                                 {% if record.operator.role == 'admin' %}
@@ -41,7 +41,7 @@
                                 -
                             {% endif %}
                         </td>
-                        <td>
+                        <td data-label="來源">
                             {% if record.source %}
                                 <a href="{% url 'request_detail' record.source.pk %}" class="btn btn-sm btn-outline-primary">查看申請</a>
                             {% else %}
@@ -54,8 +54,6 @@
         </table>
     </div>
 {% else %}
-    <div class="alert alert-info mb-0">
-        目前尚未建立專用分配紀錄資料表；直接分配紀錄會暫存於 Django admin log。現在暫無可顯示紀錄。
-    </div>
+    <div class="data-empty data-empty-cell"><svg class="data-empty-icon" aria-hidden="true"><use href="#icon-archive"></use></svg><strong>尚無可顯示的分配紀錄</strong><p>目前直接分配操作暫存於系統管理紀錄。</p></div>
 {% endif %}
 {% endblock %}

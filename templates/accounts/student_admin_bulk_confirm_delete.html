@@ -3,7 +3,8 @@
 {% block title %}批次刪除學生/社長帳號{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">批次刪除學生/社長帳號</h1>
+<div class="form-page form-page--wide"><section class="danger-zone">
+<h1 class="h3">批次刪除 {{ students|length }} 位學生／社長？</h1>
 
 <div class="alert alert-danger">
     <p class="mb-2">請確認是否要安全刪除以下 {{ students|length }} 位學生/社長。</p>
@@ -13,8 +14,8 @@
     </p>
 </div>
 
-<div class="table-responsive mb-3">
-    <table class="table table-striped align-middle">
+<div class="table-responsive data-table-container mb-3">
+    <table class="table data-table data-table--cards align-middle">
         <thead>
             <tr>
                 <th>Email</th>
@@ -27,11 +28,11 @@
         <tbody>
             {% for student in students %}
                 <tr>
-                    <td>{{ student.email|default:student.username }}</td>
-                    <td>{{ student.student_id|default:"-" }}</td>
-                    <td>{{ student.first_name|default:"-" }}</td>
-                    <td>{{ student.club|default:"-" }}</td>
-                    <td>
+                    <td class="data-primary-cell data-wrap" data-label="Email"><span class="data-primary">{{ student.email|default:student.username }}</span></td>
+                    <td data-label="Student ID">{{ student.student_id|default:"-" }}</td>
+                    <td data-label="姓名">{{ student.first_name|default:"-" }}</td>
+                    <td data-label="社團">{{ student.club|default:"-" }}</td>
+                    <td data-label="狀態">
                         {% if student.is_active %}
                             <span class="badge bg-success">啟用</span>
                         {% else %}
@@ -44,12 +45,12 @@
     </table>
 </div>
 
-<form method="post" action="{% url 'student_admin_bulk_delete' %}">
+<form method="post" action="{% url 'student_admin_bulk_delete' %}" class="form-actions" data-workflow-form>
     {% csrf_token %}
     {% for student in students %}
         <input type="hidden" name="student_ids" value="{{ student.pk }}">
     {% endfor %}
-    <button type="submit" class="btn btn-danger">確認批次刪除</button>
     <a href="{% url 'student_admin_list' %}" class="btn btn-outline-secondary">取消</a>
-</form>
+    <button type="submit" class="btn btn-danger" data-submitting-label="正在處理…">刪除或停用 {{ students|length }} 位學生</button>
+</form></section></div>
 {% endblock %}

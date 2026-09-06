@@ -1,36 +1,3 @@
 {% extends 'base.html' %}
-
-{% block title %}刪除申請紀錄 - 社團轉社系統{% endblock %}
-
-{% block content %}
-<h2 class="mb-4">刪除申請紀錄</h2>
-
-<div class="alert alert-danger">
-    <p class="mb-2">
-        請確認是否要刪除申請紀錄
-        <strong>#{{ transfer_request.id }}</strong>。
-    </p>
-    <p class="mb-0">
-        此操作會一併刪除該申請的 {{ approval_log_count }} 筆審核紀錄。系統不會刪除學生帳號、不會刪除社團，也不會變更學生目前所屬社團。
-    </p>
-</div>
-
-<dl class="row">
-    <dt class="col-sm-2">申請人</dt>
-    <dd class="col-sm-10">{{ transfer_request.student.get_full_name|default:transfer_request.student.username }}</dd>
-    <dt class="col-sm-2">原社團</dt>
-    <dd class="col-sm-10">{{ transfer_request.original_club.name }}</dd>
-    <dt class="col-sm-2">目標社團</dt>
-    <dd class="col-sm-10">{{ transfer_request.target_club.name }}</dd>
-    <dt class="col-sm-2">狀態</dt>
-    <dd class="col-sm-10">{{ transfer_request.get_status_display }}</dd>
-    <dt class="col-sm-2">申請時間</dt>
-    <dd class="col-sm-10">{{ transfer_request.created_at|date:"Y/m/d H:i" }}</dd>
-</dl>
-
-<form method="post">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-danger">確認刪除紀錄</button>
-    <a href="{% url 'all_requests' %}" class="btn btn-outline-secondary">取消</a>
-</form>
-{% endblock %}
+{% block title %}刪除申請紀錄{% endblock %}
+{% block content %}<div class="form-page"><section class="danger-zone"><h1 class="h3">刪除申請紀錄 #{{ transfer_request.id }}？</h1><p>此操作會永久刪除此申請及其 {{ approval_log_count }} 筆審核紀錄。學生帳號、社團與學生目前所屬社團不會變更。</p><div class="confirmation-summary mt-4"><dl><dt>申請人</dt><dd>{{ transfer_request.student.get_full_name|default:transfer_request.student.username }}</dd><dt>轉社路徑</dt><dd>{{ transfer_request.original_club.name }} → {{ transfer_request.target_club.name }}</dd><dt>目前狀態</dt><dd>{{ transfer_request.get_status_display }}</dd><dt>申請時間</dt><dd>{{ transfer_request.created_at|date:"Y/m/d H:i" }}</dd></dl></div><form method="post" class="form-actions" data-workflow-form>{% csrf_token %}<a href="{% url 'all_requests' %}" class="btn btn-outline-secondary">取消</a><button type="submit" class="btn btn-danger" data-submitting-label="正在刪除…">永久刪除此申請紀錄</button></form></section></div>{% endblock %}

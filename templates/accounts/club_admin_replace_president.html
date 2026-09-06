@@ -1,30 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}選擇新社長{% endblock %}
+{% block title %}社長交接{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">選擇新社長</h1>
-
-<div class="card card-body">
-    <p class="mb-3">
-        要將 {{ old_president.first_name|default:old_president.username }} 移至未分配帳號前，請先為 {{ club.name }} 選擇新社長。
-    </p>
-
-    <form method="post">
+<div class="form-page">
+    <form method="post" class="form-shell" data-workflow-form novalidate>
         {% csrf_token %}
-        <div class="mb-3">
-            <label for="new_president_id" class="form-label">新社長</label>
-            <select name="new_president_id" id="new_president_id" class="form-select" required>
-                <option value="">請選擇新社長</option>
-                {% for candidate in candidates %}
-                    <option value="{{ candidate.pk }}">
-                        {{ candidate.first_name|default:candidate.username }}{% if candidate.student_id %}（{{ candidate.student_id }}）{% endif %}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="btn btn-primary">確認更換並移除原社長</button>
-        <a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-outline-secondary">取消</a>
+        <div class="form-intro"><h1>社長交接</h1><p>在移除現任社長前，必須為「{{ club.name }}」指定新的社長。</p></div>
+        <section class="form-section">
+            <div class="confirmation-summary mb-4"><dl><dt>社團</dt><dd>{{ club.name }}</dd><dt>現任社長</dt><dd>{{ old_president.first_name|default:old_president.username }}</dd><dt>交接後</dt><dd>原社長會改為一般學生並移至未分配帳號；新社長會留在此社團並取得社長身分。</dd></dl></div>
+            <div class="form-field"><div class="form-field-label-row"><label for="new_president_id" class="form-label">新社長</label></div><select name="new_president_id" id="new_president_id" class="form-select" required><option value="">請選擇新社長</option>{% for candidate in candidates %}<option value="{{ candidate.pk }}">{{ candidate.first_name|default:candidate.username }}{% if candidate.student_id %}（{{ candidate.student_id }}）{% endif %}</option>{% endfor %}</select><div class="form-text">只列出目前社團中啟用且可接任的其他成員。</div></div>
+        </section>
+        <div class="form-actions"><a href="{% url 'club_admin_edit' club.pk %}" class="btn btn-outline-secondary">取消</a><button type="submit" class="btn btn-primary" data-submitting-label="正在交接…">完成交接並移除原社長</button></div>
     </form>
 </div>
 {% endblock %}
