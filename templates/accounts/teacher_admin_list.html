@@ -13,7 +13,8 @@
 <form method="get" class="data-toolbar-form">
     <div class="data-search">
         <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋登入帳號、Email 或姓名">
+        <label for="teacher-search" class="visually-hidden">搜尋登入帳號、Email 或姓名</label>
+        <input id="teacher-search" type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋登入帳號、Email 或姓名">
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-secondary">搜尋</button>

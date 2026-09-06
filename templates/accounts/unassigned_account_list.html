@@ -14,7 +14,8 @@
 <form method="get" class="data-toolbar-form">
     <div class="data-search">
         <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋姓名、Email 或學號">
+        <label for="unassigned-search" class="visually-hidden">搜尋姓名、Email 或學號</label>
+        <input id="unassigned-search" type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋姓名、Email 或學號">
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-secondary">搜尋</button>
@@ -41,7 +42,8 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-all-unassigned" data-clear-selection{% if not accounts %} disabled{% endif %}>取消全選</button>
         </div>
         <div class="col-sm-6 col-md-4">
-            <select name="club_id" class="form-select form-select-sm" form="unassigned-bulk-form"{% if not accounts or not active_clubs %} disabled{% endif %}>
+            <label for="bulk-club-assignment" class="visually-hidden">批次分配至社團</label>
+            <select id="bulk-club-assignment" name="club_id" class="form-select form-select-sm" form="unassigned-bulk-form"{% if not accounts or not active_clubs %} disabled{% endif %}>
                 <option value="">選擇社團</option>
                 {% for club in active_clubs %}
                     <option value="{{ club.pk }}">{{ club.name }}（{{ club.current_members }}/{{ club.max_members }} 人）</option>
@@ -94,7 +96,8 @@
                         {% if account.role == 'student' %}
                             <form method="post" action="{% url 'unassigned_student_assign_club' account.pk %}" class="data-row-actions" data-workflow-form data-assignment-form data-assignment-subject="{{ account.first_name|default:account.username }}">
                                 {% csrf_token %}
-                                <select name="club_id" class="form-select form-select-sm" required>
+                                <label for="club-assignment-{{ account.pk }}" class="visually-hidden">將 {{ account.first_name|default:account.username }} 分配至社團</label>
+                                <select id="club-assignment-{{ account.pk }}" name="club_id" class="form-select form-select-sm" required>
                                     <option value="">選擇社團</option>
                                     {% for club in active_clubs %}
                                         <option value="{{ club.pk }}">{{ club.code|default:"-" }} {{ club.name }}（{{ club.current_members }}/{{ club.max_members }} 人）</option>

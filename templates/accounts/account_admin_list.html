@@ -52,7 +52,8 @@
 <form method="get" class="data-toolbar-form" id="account-filter-form">
     <div class="data-search">
         <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋姓名、Email 或學號" list="account-search-options">
+        <label for="account-search" class="visually-hidden">搜尋姓名、Email 或學號</label>
+        <input id="account-search" type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋姓名、Email 或學號" list="account-search-options">
         <datalist id="account-search-options">
             {% for option in account_search_options %}
                 <option value="{{ option }}"></option>
@@ -63,6 +64,7 @@
         <button type="submit" class="btn btn-secondary">搜尋</button>
     </div>
     <div class="data-filter">
+        <label for="account-role-filter" class="visually-hidden">依身分篩選帳號</label>
         <select name="role" class="form-select" id="account-role-filter">
             {% for value, label in role_options %}
                 <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>

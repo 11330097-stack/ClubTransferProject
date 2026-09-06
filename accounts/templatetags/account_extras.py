@@ -1,8 +1,9 @@
+import re
+
 from django import template
 from django.utils.safestring import mark_safe
 
 from accounts.permissions import can_review_transfer_requests
-from transfers.models import get_user_from_display_text
 
 
 register = template.Library()
@@ -39,11 +40,10 @@ def user_is_club_president(user, club):
     if not user or not club or not getattr(club, 'president', ''):
         return False
 
-    resolved_president = get_user_from_display_text(club.president)
-    if resolved_president:
-        return resolved_president.pk == user.pk
-
-    return club.president.strip() == user.username
+    president_text = club.president.strip()
+    match = re.search(r'\(([^()]+)\)\s*$', president_text)
+    president_username = match.group(1).strip() if match else president_text
+    return president_username == user.username
 
 
 @register.filter

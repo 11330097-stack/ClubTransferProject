@@ -10,6 +10,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body class="{% if user.is_authenticated %}app-authenticated{% else %}public-layout{% endif %}">
+    <a class="skip-link" href="#main-content">跳至主要內容</a>
     {% include 'includes/icon_sprite.html' %}
 
     {% if user.is_authenticated %}
@@ -55,7 +56,7 @@
                     </div>
                 </header>
 
-                <main class="app-main">
+                <main class="app-main" id="main-content" tabindex="-1">
                     <div class="app-content {% block content_width %}content-wide{% endblock %}">
     {% else %}
         <nav class="navbar navbar-expand site-navbar public-navbar" aria-label="公開導覽">
@@ -68,7 +69,7 @@
                 </div>
             </div>
         </nav>
-        <main class="container site-main">
+        <main class="container site-main" id="main-content" tabindex="-1">
     {% endif %}
 
         {% if messages %}

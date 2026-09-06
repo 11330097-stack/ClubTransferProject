@@ -17,7 +17,8 @@
 <form method="get" class="data-toolbar-form">
     <div class="data-search">
         <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋登入帳號、Email、學號或姓名">
+        <label for="student-search" class="visually-hidden">搜尋登入帳號、Email、學號或姓名</label>
+        <input id="student-search" type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋登入帳號、Email、學號或姓名">
     </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-secondary">搜尋</button>
@@ -79,7 +80,6 @@
                     <td>{{ student.club|default:"-" }}</td>
                     <td><span class="badge {{ student|role_badge_class }}">{{ student|display_role }}</span></td>
                     <td>
-                        <div class="data-row-actions">
                         {% if student.is_active %}
                             <span class="badge bg-success">啟用</span>
                         {% else %}
@@ -87,6 +87,7 @@
                         {% endif %}
                     </td>
                     <td>
+                        <div class="data-row-actions">
                         <a href="{% url 'student_admin_edit' student.pk %}" class="btn btn-sm btn-outline-primary">
                             編輯
                         </a>

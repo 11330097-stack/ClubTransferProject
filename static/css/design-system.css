@@ -15,7 +15,7 @@
     --color-surface-subtle: #eef2f7;
     --color-text-primary: #172033;
     --color-text-secondary: #526078;
-    --color-text-muted: #6b7890;
+    --color-text-muted: #657187;
     --color-text-inverse: #ffffff;
     --color-primary: #3158c9;
     --color-primary-hover: #2849aa;
@@ -36,7 +36,7 @@
     --color-info-subtle: #edf7fc;
     --color-border: #dfe5ee;
     --color-border-strong: #cbd4e1;
-    --color-focus: rgba(49, 88, 201, 0.22);
+    --color-focus: #3158c9;
 
     /* Typography */
     --font-family-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
@@ -70,8 +70,16 @@
     --shadow-sm: 0 1px 2px rgba(20, 31, 53, 0.05);
     --shadow-md: 0 8px 24px rgba(20, 31, 53, 0.07);
     --shadow-lg: 0 18px 44px rgba(20, 31, 53, 0.10);
-    --transition-fast: 140ms ease;
-    --transition-normal: 220ms ease;
+    --motion-duration-fast: 140ms;
+    --motion-duration-base: 180ms;
+    --motion-duration-slow: 240ms;
+    --motion-duration-spinner: 700ms;
+    --motion-ease-standard: ease;
+    --motion-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --transition-fast: var(--motion-duration-fast) var(--motion-ease-standard);
+    --transition-normal: var(--motion-duration-base) var(--motion-ease-standard);
+    --transition-slow: var(--motion-duration-slow) var(--motion-ease-out);
 
     /* Controls and layout */
     --control-height-sm: 2rem;
@@ -132,7 +140,9 @@ body {
 
 a {
     color: var(--color-primary);
+    text-decoration-color: currentColor;
     text-underline-offset: 0.16em;
+    transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
 }
 
 a:hover {
@@ -147,6 +157,24 @@ a:hover {
 :focus-visible {
     outline: 3px solid var(--color-focus);
     outline-offset: 2px;
+}
+
+.skip-link {
+    position: fixed;
+    z-index: 2000;
+    top: var(--space-3);
+    left: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-text-primary);
+    color: var(--color-text-inverse);
+    font-weight: 650;
+    transform: translateY(calc(-100% - var(--space-5)));
+}
+
+.skip-link:focus {
+    color: var(--color-text-inverse);
+    transform: translateY(0);
 }
 
 /* Layout */
@@ -292,7 +320,7 @@ a:hover {
     line-height: 1.25;
     text-align: left;
     text-decoration: none;
-    transition: color var(--transition-fast), background-color var(--transition-fast);
+    transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .app-nav-link:hover,
@@ -305,6 +333,10 @@ a:hover {
     background: var(--color-primary-subtle);
     color: var(--color-primary-hover);
     font-weight: 650;
+}
+
+.app-nav-link:active {
+    transform: translateX(1px);
 }
 
 .app-nav-link.active::before {
@@ -394,6 +426,7 @@ a:hover {
     margin-left: -0.45rem;
     border-radius: var(--radius-md);
     color: var(--color-text-secondary);
+    transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .mobile-menu-button:hover {
@@ -419,12 +452,17 @@ a:hover {
     border-radius: var(--radius-md);
     color: var(--color-text-primary);
     text-align: left;
-    transition: background-color var(--transition-fast);
+    transition: background-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .user-menu-button:hover,
 .user-menu-button[aria-expanded="true"] {
     background: var(--color-surface-subtle);
+}
+
+.mobile-menu-button:active,
+.user-menu-button:active {
+    transform: scale(0.98);
 }
 
 .user-avatar {
@@ -472,6 +510,11 @@ a:hover {
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+    transition: transform var(--transition-normal);
+}
+
+.user-menu-button[aria-expanded="true"] .user-menu-chevron {
+    transform: rotate(180deg);
 }
 
 .user-dropdown {
@@ -760,6 +803,25 @@ th {
     border-radius: var(--radius-lg);
     background: var(--color-surface);
     box-shadow: var(--shadow-lg);
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity var(--motion-duration-fast) var(--motion-ease-in), transform var(--motion-duration-fast) var(--motion-ease-in);
+    transition-behavior: allow-discrete;
+}
+
+.dropdown-menu.show {
+    opacity: 1;
+    transform: translateY(0);
+    transform-origin: top;
+    transition-duration: var(--motion-duration-base);
+    transition-timing-function: var(--motion-ease-out);
+}
+
+@starting-style {
+    .dropdown-menu.show {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
 }
 
 .dropdown-item {
@@ -767,12 +829,17 @@ th {
     color: var(--color-text-primary);
     font-size: var(--font-size-sm);
     padding: 0.55rem 0.75rem;
+    transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .dropdown-item:hover,
 .dropdown-item:focus {
     background: var(--color-primary-subtle);
     color: var(--color-primary-hover);
+}
+
+.dropdown-item:active {
+    transform: translateX(1px);
 }
 
 .dropdown-divider {
@@ -795,17 +862,14 @@ th {
     transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 
-.btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-}
-
 .btn:active:not(:disabled) {
-    transform: translateY(0);
+    transform: translateY(1px) scale(0.98);
+    box-shadow: none;
 }
 
 .btn:focus-visible {
     outline: 0;
-    box-shadow: 0 0 0 3px var(--color-focus);
+    box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 5px var(--color-focus);
 }
 
 .btn:disabled,
@@ -813,6 +877,13 @@ th {
     cursor: not-allowed;
     opacity: 0.55;
     box-shadow: none;
+    transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+    }
 }
 
 .btn-sm {
@@ -964,7 +1035,7 @@ form select:focus,
 form textarea:focus {
     border-color: var(--color-primary);
     outline: 0;
-    box-shadow: 0 0 0 3px var(--color-focus);
+    box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 5px var(--color-focus);
 }
 
 .form-control:disabled,
@@ -1010,7 +1081,7 @@ form input[type="checkbox"]:focus,
 form input[type="radio"]:focus {
     border-color: var(--color-primary);
     outline: 0;
-    box-shadow: 0 0 0 3px var(--color-focus);
+    box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 5px var(--color-focus);
 }
 
 input[type="file"]::file-selector-button {
@@ -1617,8 +1688,7 @@ a.card {
 }
 
 a.card:hover,
-a.card:focus-visible,
-.club-card:hover {
+a.card:focus-visible {
     border-color: var(--color-primary-border);
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
@@ -1666,6 +1736,25 @@ a.card:focus-visible,
     box-shadow: var(--shadow-sm);
 }
 
+.app-message {
+    animation: motion-message-in var(--motion-duration-base) var(--motion-ease-out);
+}
+
+.alert.fade {
+    transition: opacity var(--motion-duration-fast) var(--motion-ease-in);
+}
+
+@keyframes motion-message-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .alert-dismissible {
     padding-right: 3rem;
 }
@@ -1704,6 +1793,15 @@ a.card:focus-visible,
 .alert .btn-close {
     padding: 1rem;
     opacity: 0.55;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.alert .btn-close:hover {
+    opacity: 0.8;
+}
+
+.alert .btn-close:active {
+    transform: scale(0.94);
 }
 
 .app-message__icon {
@@ -1859,7 +1957,7 @@ a.card:focus-visible,
     border-right-color: transparent;
     border-radius: 50%;
     content: "";
-    animation: state-spin 0.7s linear infinite;
+    animation: state-spin var(--motion-duration-spinner) linear infinite;
 }
 
 @keyframes state-spin {
@@ -2089,6 +2187,16 @@ a.card:focus-visible,
     transition: background-color var(--transition-fast);
 }
 
+.data-table > tbody > tr > * {
+    transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .data-table > tbody > tr:not(:has(.data-empty)):hover {
+        --bs-table-bg: var(--color-surface-muted);
+    }
+}
+
 .data-table > tbody > tr.is-selected,
 .data-table > tbody > tr:has(.form-check-input:checked) {
     --bs-table-bg: var(--color-primary-subtle);
@@ -2148,6 +2256,14 @@ a.card:focus-visible,
 
 .data-row-actions .btn {
     box-shadow: none;
+}
+
+.form-check-input {
+    transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.form-check-input:active:not(:disabled) {
+    transform: scale(0.94);
 }
 
 .data-empty-cell {
@@ -2222,6 +2338,27 @@ a.card:focus-visible,
 }
 
 /* Modals and pagination */
+.modal.fade {
+    transition: opacity var(--motion-duration-fast) var(--motion-ease-in);
+}
+
+.modal.fade.show {
+    transition-timing-function: var(--motion-ease-out);
+}
+
+.modal.fade .modal-dialog {
+    transform: translateY(-6px) scale(0.98);
+    transition: transform var(--motion-duration-slow) var(--motion-ease-out);
+}
+
+.modal.show .modal-dialog {
+    transform: translateY(0) scale(1);
+}
+
+.modal-backdrop.fade {
+    transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
+}
+
 .modal-content {
     overflow: hidden;
     border: 1px solid var(--color-border);
@@ -2250,6 +2387,43 @@ a.card:focus-visible,
     background: var(--color-surface);
     color: var(--color-primary);
     font-size: var(--font-size-sm);
+    transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.offcanvas {
+    transition: transform var(--motion-duration-slow) var(--motion-ease-out);
+}
+
+.offcanvas-backdrop.fade {
+    transition: opacity var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+details > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    cursor: pointer;
+    list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+    display: none;
+}
+
+details > summary::after {
+    width: 0.55rem;
+    height: 0.55rem;
+    flex: 0 0 auto;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    content: "";
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform var(--transition-normal);
+}
+
+details[open] > summary::after {
+    transform: rotate(225deg) translate(-1px, -1px);
 }
 
 .page-link:hover,
@@ -2684,10 +2858,73 @@ a.card:focus-visible,
         font-size: var(--font-size-sm);
     }
 
+    .btn-sm,
+    .page-link,
+    .mobile-menu-button,
+    .btn-close {
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+    }
+
+    .btn-sm {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dashboard-progress {
+        grid-template-columns: 1fr;
+        overflow-x: visible;
+    }
+
+    .dashboard-progress-step {
+        text-align: left;
+    }
+
+    .modal-dialog {
+        margin: var(--space-3);
+    }
+
+    .modal-content {
+        max-height: calc(100vh - (var(--space-3) * 2));
+        max-height: calc(100dvh - (var(--space-3) * 2));
+    }
+
+    .modal-body {
+        overflow-y: auto;
+    }
+
     .modal-body,
     .modal-header,
     .modal-footer {
         padding: var(--space-4);
+    }
+
+    .modal-footer {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+        margin: 0;
+    }
+
+    .bulk-action-bar,
+    .bulk-action-bar > .row {
+        width: 100%;
+    }
+
+    .bulk-action-bar .btn,
+    .bulk-action-bar .form-select {
+        min-height: 2.75rem;
+    }
+
+    .page-header h1,
+    .page-header h2,
+    .data-primary,
+    .modal-title {
+        overflow-wrap: anywhere;
     }
 
     .form-grid {
@@ -2795,8 +3032,25 @@ a.card:focus-visible,
     *::before,
     *::after {
         scroll-behavior: auto !important;
-        transition-duration: 0.01ms !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
+        transition: none !important;
+        animation: none !important;
+    }
+
+    .btn:hover,
+    .btn:active,
+    .app-nav-link:active,
+    .dropdown-item:active,
+    .mobile-menu-button:active,
+    .user-menu-button:active,
+    a.card:hover,
+    a.card:focus-visible,
+    .modal.fade .modal-dialog,
+    .modal.show .modal-dialog {
+        transform: none !important;
+    }
+
+    .btn.is-processing::before {
+        border-right-color: currentColor;
+        opacity: 0.5;
     }
 }

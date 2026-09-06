@@ -16,7 +16,8 @@
 <form method="get" class="data-toolbar-form">
     <div class="data-search">
         <svg class="data-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-        <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋社團名稱" list="club-name-options">
+        <label for="club-admin-search" class="visually-hidden">搜尋社團名稱</label>
+        <input id="club-admin-search" type="search" name="q" value="{{ q }}" class="form-control" placeholder="搜尋社團名稱" list="club-name-options">
         <datalist id="club-name-options">
             {% for club_name in club_name_options %}
                 <option value="{{ club_name }}"></option>

@@ -8,7 +8,7 @@
     <div class="col-md-8">
         <div class="card shadow">
             <div class="card-header bg-primary text-white">
-                <div class="d-flex align-items-center justify-content-between gap-2"><h4 class="mb-0">{{ club.name }}</h4><span class="badge {% if club.is_active %}bg-success{% else %}bg-secondary{% endif %}">{% if club.is_active %}啟用中{% else %}已停用{% endif %}</span></div>
+                <div class="d-flex align-items-center justify-content-between gap-2"><h1 class="h4 mb-0">{{ club.name }}</h1><span class="badge {% if club.is_active %}bg-success{% else %}bg-secondary{% endif %}">{% if club.is_active %}啟用中{% else %}已停用{% endif %}</span></div>
             </div>
             <div class="card-body">
                 {% if not club.is_active %}<div class="state-banner state-banner--warning m-0 mb-4" role="status"><svg aria-hidden="true"><use href="#icon-alert"></use></svg><div><strong>此社團目前已停用</strong><p>資料與歷史紀錄仍保留，但目前不接受社員或轉社申請。</p></div></div>{% endif %}

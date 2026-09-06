@@ -1017,17 +1017,16 @@ class TeacherAdminListView(LoginRequiredMixin, AdminRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         teachers = list(context['teachers'])
+        guided_clubs = {}
+        for club in Club.objects.filter(is_active=True).order_by('code', 'name'):
+            teacher_text = str(club.teacher or '').strip()
+            username = teacher_text.rsplit('(', 1)[-1].rstrip(')').strip()
+            guided_clubs.setdefault(username, []).append(club)
         for teacher in teachers:
-            teacher.guided_clubs = self.get_guided_clubs(teacher)
+            teacher.guided_clubs = guided_clubs.get(teacher.username, [])
         context['teachers'] = teachers
         context['q'] = self.request.GET.get('q', '').strip()
         return context
-
-    def get_guided_clubs(self, teacher):
-        return Club.objects.filter(
-            teacher__icontains=f'({teacher.username})',
-            is_active=True,
-        ).order_by('code', 'name')
 
 
 class TeacherAdminCreateView(LoginRequiredMixin, AdminRequiredMixin, AccountAdminReturnMixin, CreateView):

@@ -36,10 +36,15 @@
             const linkedButtons = form.id
                 ? Array.from(document.querySelectorAll(`button[form="${form.id}"], input[form="${form.id}"]`))
                 : [];
-            Array.from(new Set([...localButtons, ...linkedButtons])).forEach((button) => {
+            const submitButtons = Array.from(new Set([...localButtons, ...linkedButtons]));
+            const activeButton = event.submitter || submitButtons[0];
+            submitButtons.forEach((button) => {
                 button.disabled = true;
-                if (button === event.submitter) button.classList.add('is-processing');
-                if (button.tagName === 'BUTTON') {
+                if (button === activeButton) {
+                    button.style.width = `${Math.ceil(button.getBoundingClientRect().width)}px`;
+                    button.classList.add('is-processing');
+                }
+                if (button === activeButton && button.tagName === 'BUTTON') {
                     button.dataset.originalLabel = button.textContent.trim();
                     button.textContent = button.dataset.submittingLabel || '處理中…';
                 }

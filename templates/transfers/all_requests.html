@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="page-header">
-    <h2 class="mb-0">全校轉社申請管理</h2>
+    <h1 class="h2 mb-0">全校轉社申請管理</h1>
     {% if total_count %}<form method="post" action="{% url 'delete_all_request_records' %}" data-workflow-form data-confirm-message="永久刪除全部 {{ total_count }} 筆全校轉社申請及其審核紀錄？學生、社團與目前社員分配不會變更；此操作無法復原。">
         {% csrf_token %}
         <button type="submit" class="btn btn-outline-danger btn-sm" data-submitting-label="正在刪除…">刪除全部 {{ total_count }} 筆紀錄</button>
@@ -64,11 +64,11 @@
 
 {% for req in requests %}
 {% if req.status == 'admin_pending' %}
-<div class="modal fade" id="approveModal{{ req.id }}" tabindex="-1">
+<div class="modal fade" id="approveModal{{ req.id }}" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="adminApproveTitle{{ req.id }}">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">最終核准此轉社申請？</h5>
+                <h2 class="modal-title h5" id="adminApproveTitle{{ req.id }}">最終核准此轉社申請？</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
             </div>
             <div class="modal-body">

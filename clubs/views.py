@@ -48,7 +48,7 @@ class ClubListView(LoginRequiredMixin, ListView):
                 'teacher_name': display_name_without_username(club.teacher),
                 'president_name': display_name_without_username(club.president),
                 'actual_member_count': club.actual_member_count,
-                'remaining_slots': club.get_remaining_slots(),
+                'remaining_slots': max(0, club.max_members - club.actual_member_count),
             })
 
         context['club_info_list'] = club_info
